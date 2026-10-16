@@ -21,6 +21,10 @@ backend/
 └── packages/shared/      tenant-aware authorization, validation, logging, DynamoDB key helpers
 ```
 
+## Commands
+
+The backend is part of the npm workspace at the repository root. Run `npm install`, `npm run lint`, `npm run typecheck`, `npm test` and `npm run build` from the root. Unit tests are `*.test.ts` files next to the code. Functions import shared code as `@slotwise/shared`.
+
 ## Conventions
 
 - The tenant id always comes from the verified JWT, never from the request path or body.
