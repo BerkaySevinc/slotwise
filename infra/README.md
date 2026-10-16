@@ -16,10 +16,11 @@ Terraform code for every AWS resource in the project. Nothing is created by hand
 `bootstrap/` creates the remote state bucket (private, versioned, encrypted, TLS only). A GitHub OIDC identity provider is not part of it: the account's organization policy denies creating IAM identity providers (see ADR-0005).
 
 1. Log in: `aws login --profile slotwise`, then set `AWS_PROFILE=slotwise` in your shell.
-2. From `bootstrap/`: `terraform init`, `terraform validate`, `terraform plan`.
-3. `terraform apply` creates cloud resources. Review the plan first.
+2. Copy `bootstrap/backend.hcl.example` to `bootstrap/backend.hcl` and set the bucket name (`slotwise-tfstate-<account id>`). The real file is git-ignored.
+3. From `bootstrap/`: `terraform init -backend-config=backend.hcl`, `terraform validate`, `terraform plan`.
+4. `terraform apply` creates cloud resources. Review the plan first.
 
-The first apply uses local state, which is git-ignored. Moving the bootstrap state into its own bucket is a separate step after the first apply. The environment roots will use `use_lockfile = true` with the key prefix `envs/`.
+The state lives in the bucket this module creates (key `bootstrap/terraform.tfstate`, native S3 locking). On a brand new account the bucket does not exist yet: run `terraform init -backend=false` and apply once with local state, then move it with `terraform init -migrate-state -backend-config=backend.hcl`. The environment roots use the key prefix `envs/`.
 
 ## Rules
 

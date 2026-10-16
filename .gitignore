@@ -38,6 +38,7 @@ override.tf.json
 !*.tfvars.example
 .terraformrc
 terraform.rc
+backend.hcl
 
 # Lambda packaging artifacts
 *.zip
