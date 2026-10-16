@@ -26,7 +26,9 @@ Multi-tenant appointment booking platform for small businesses (first vertical: 
 - A change is done when its criteria are met, tests pass, `api/openapi.yaml` is updated, infrastructure is in code and the docs are current.
 - Update the affected component README, `CHANGELOG.md` (under `[Unreleased]`) and this file in the same change that makes them out of date. Do not rewrite unrelated docs. Component READMEs explain how to run, test and deploy that component.
 - Make the smallest change that satisfies the story. Do not add features, abstractions or configuration that no story needs.
-- If a requirement is ambiguous, ask. Record significant decisions as an ADR.
+- If a requirement is ambiguous, ask.
+- Record every significant, hard-to-reverse decision as an ADR in `docs/adr/NNNN-short-title.md` (tenancy model, data model, authentication flow, a new AWS service, a change to the tooling list below). Use the sections Status, Context, Decision and Consequences, and keep it to about one page. A new ADR starts as `Proposed`. Set it to `Accepted` only after the owner explicitly approves it in the chat; never accept an ADR on your own. ADRs contain no account ids and no personal details.
+- Never rewrite an accepted ADR. To change a decision, add a new ADR and set the old one's status to `Superseded by NNNN`. Fixing a typo is fine. If a change would contradict an accepted ADR, stop and ask first.
 - Use Conventional Commits. Do not commit or push unless asked.
 - Repository content (code, comments, docs, commit messages) is English, whatever language the chat uses. Comment only where the reason is non-obvious.
 
@@ -34,7 +36,8 @@ Multi-tenant appointment booking platform for small businesses (first vertical: 
 
 - `terraform plan` is fine. Never run `terraform apply`, `terraform destroy` or anything else that creates, changes or deletes cloud resources, or costs money, without explicit confirmation.
 - No secrets, credentials or account ids in files. Account and region come from variables. CI authenticates to AWS through OIDC.
-- Never ask the owner to paste credentials, keys or tokens into the chat, and never print or log them. AWS access goes through an SSO profile or environment variables.
+- Never change account-level AWS settings (billing plan, organization, identity or Region settings) without explicit confirmation.
+- Never ask the owner to paste credentials, keys or tokens into the chat, and never print or log them. AWS access uses the owner's short-lived CLI session; do not create or request long-lived access keys.
 - Examples and `.env.example` files contain obviously fake placeholder values only. Terraform variables that hold secrets are `sensitive = true`; state lives in a private, encrypted, versioned S3 bucket.
 - Once secret scanning (gitleaks) is set up, run it before proposing a commit. If a secret is ever committed, treat it as compromised: rotate it first, then clean the history.
 - Do not copy code, text or diagrams from third-party or proprietary sources into the repository.
@@ -52,4 +55,11 @@ Rule: use the newest stable line that AWS Lambda supports as generally available
 
 ## Commands
 
-No scripts exist yet. When you add install, lint, test, build or deploy scripts, list them here and keep the list accurate.
+Run from the repository root (one npm workspace, see ADR-0004). Deploy scripts do not exist yet. When you add or change scripts, keep this list accurate.
+
+- `npm install`: install all workspaces.
+- `npm run lint`: ESLint (typescript-eslint strict, type-checked).
+- `npm run format` / `npm run format:check`: Prettier (Markdown files are not covered).
+- `npm run typecheck`: `tsc --noEmit` over the backend.
+- `npm test`: Vitest (passes while there are no tests).
+- `npm run build`: runs each workspace's own `build` script, if it has one.
