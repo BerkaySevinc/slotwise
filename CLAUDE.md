@@ -39,6 +39,7 @@ Multi-tenant appointment booking platform for small businesses (first vertical: 
 - Never change account-level AWS settings (billing plan, organization, identity or Region settings) without explicit confirmation.
 - Never ask the owner to paste credentials, keys or tokens into the chat, and never print or log them. AWS access uses the owner's short-lived CLI session; do not create or request long-lived access keys.
 - Examples and `.env.example` files contain obviously fake placeholder values only. Terraform variables that hold secrets are `sensitive = true`; state lives in a private, encrypted, versioned S3 bucket.
+- When a change introduces a local file that holds real values or credentials (an env file, a variable file, a backend or tool config), do three things in the same change: git-ignore it, commit a `*.example` file with fake placeholders, and add the file to the `deny` list in `.claude/settings.json`. Only ever add to that list; never remove or loosen a rule without asking.
 - Once secret scanning (gitleaks) is set up, run it before proposing a commit. If a secret is ever committed, treat it as compromised: rotate it first, then clean the history.
 - Do not copy code, text or diagrams from third-party or proprietary sources into the repository.
 
