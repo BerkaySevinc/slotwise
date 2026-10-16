@@ -14,4 +14,5 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - TypeScript workspace: root tooling (TypeScript 6.0 strict, ESLint, Prettier, Vitest, esbuild), lint, format, typecheck, test and build scripts, and an empty `@slotwise/shared` package.
 - Terraform bootstrap (`infra/bootstrap/`): remote state bucket. The GitHub OIDC role was dropped because the account's organization policy denies creating IAM identity providers.
 - Accepted ADR-0005: how CI reaches AWS without GitHub OIDC (supersedes the OIDC part of ADR-0003).
+- GitHub Actions CI (`.github/workflows/ci.yml`): lint, format check, type check, tests and build, plus a gitleaks secret scan. Actions are pinned to commit SHAs and the workflow has read-only permissions.
 - Shared agent permission rules (`.claude/settings.json`): secret files cannot be read; apply, destroy, commit and push need confirmation.

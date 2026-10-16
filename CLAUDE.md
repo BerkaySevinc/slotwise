@@ -63,3 +63,4 @@ Run from the repository root (one npm workspace, see ADR-0004). Deploy scripts d
 - `npm run typecheck`: `tsc --noEmit` over the backend.
 - `npm test`: Vitest (passes while there are no tests).
 - `npm run build`: runs each workspace's own `build` script, if it has one.
+- `gitleaks git . --redact`: scan the git history for secrets. `gitleaks dir <path> --redact` scans files that are not committed yet. Run both before proposing a commit. CI runs the same scan (`.github/workflows/ci.yml`) next to the checks above.
