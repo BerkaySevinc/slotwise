@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted
+Accepted. The CI/CD authentication through GitHub OIDC is superseded by ADR-0005; the rest of this decision still stands.
 
 ## Context
 

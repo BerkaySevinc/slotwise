@@ -12,5 +12,6 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - Accepted ADRs: tenancy model (0001), DynamoDB data model and slot locking (0002), infrastructure as code with Terraform (0003).
 - Accepted ADR-0004: npm workspaces at the repository root.
 - TypeScript workspace: root tooling (TypeScript 6.0 strict, ESLint, Prettier, Vitest, esbuild), lint, format, typecheck, test and build scripts, and an empty `@slotwise/shared` package.
-- Terraform bootstrap (`infra/bootstrap/`): remote state bucket and GitHub OIDC deploy role. Planned only, not applied.
+- Terraform bootstrap (`infra/bootstrap/`): remote state bucket. The GitHub OIDC role was dropped because the account's organization policy denies creating IAM identity providers.
+- Accepted ADR-0005: how CI reaches AWS without GitHub OIDC (supersedes the OIDC part of ADR-0003).
 - Shared agent permission rules (`.claude/settings.json`): secret files cannot be read; apply, destroy, commit and push need confirmation.

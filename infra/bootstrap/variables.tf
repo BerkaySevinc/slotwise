@@ -9,13 +9,3 @@ variable "project" {
   type        = string
   default     = "slotwise"
 }
-
-variable "github_repository" {
-  description = "GitHub repository allowed to assume the deploy role, as owner/name."
-  type        = string
-
-  validation {
-    condition     = can(regex("^[A-Za-z0-9-]+/[A-Za-z0-9._-]+$", var.github_repository))
-    error_message = "Use the form owner/name."
-  }
-}
