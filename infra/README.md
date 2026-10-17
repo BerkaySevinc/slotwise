@@ -1,6 +1,6 @@
 # Infrastructure
 
-Terraform code for every AWS resource in the project. Nothing is created by hand in the console. **Status: not started.**
+Terraform code for every AWS resource in the project. Nothing is created by hand in the console. **Status:** the bootstrap is applied; the dev environment holds a smoke test only.
 
 ## Planned layout
 
@@ -16,11 +16,30 @@ Terraform code for every AWS resource in the project. Nothing is created by hand
 `bootstrap/` creates the remote state bucket (private, versioned, encrypted, TLS only). A GitHub OIDC identity provider is not part of it: the account's organization policy denies creating IAM identity providers (see ADR-0005).
 
 1. Log in: `aws login --profile slotwise`, then set `AWS_PROFILE=slotwise` in your shell.
-2. Copy `bootstrap/backend.hcl.example` to `bootstrap/backend.hcl` and set the bucket name (`slotwise-tfstate-<account id>`). The real file is git-ignored.
-3. From `bootstrap/`: `terraform init -backend-config=backend.hcl`, `terraform validate`, `terraform plan`.
-4. `terraform apply` creates cloud resources. Review the plan first.
+2. From `bootstrap/`: run the `terraform init` command from [State backend](#state-backend), then `terraform validate` and `terraform plan`.
+3. `terraform apply` creates cloud resources. Review the plan first.
 
-The state lives in the bucket this module creates (key `bootstrap/terraform.tfstate`, native S3 locking). On a brand new account the bucket does not exist yet: run `terraform init -backend=false` and apply once with local state, then move it with `terraform init -migrate-state -backend-config=backend.hcl`. The environment roots use the key prefix `envs/`.
+The state lives in the bucket this module creates (key `bootstrap/terraform.tfstate`, native S3 locking). On a brand new account the bucket does not exist yet: run `terraform init -backend=false` and apply once with local state, then move it with the `init` command from [State backend](#state-backend) plus `-migrate-state`. The environment roots use the key prefix `envs/`.
+
+## State backend
+
+Every root stores its state in the bucket `slotwise-tfstate-<account id>`. The account id is not written in any file: it is derived from the account you are signed in to, so the same command works on any machine and in CI. It works in PowerShell and in bash:
+
+```
+terraform init "-backend-config=bucket=slotwise-tfstate-$(aws sts get-caller-identity --query Account --output text)"
+```
+
+Run it once per folder (and again when providers or the backend change).
+
+## Dev environment
+
+`envs/dev/` holds the development stack. Today it only contains a throwaway smoke test: the `hello` Lambda behind an HTTP API (`GET /hello`), used to prove that code, packaging, remote state and API Gateway work end to end. It is deleted once real functions exist.
+
+1. Build the function bundle from the repository root: `npm run build`. Terraform zips `backend/functions/hello/dist/index.mjs`.
+2. From `envs/dev/`: run the `terraform init` command from [State backend](#state-backend), then `terraform validate` and `terraform plan`.
+3. `terraform apply` creates cloud resources. Review the plan first. The `api_url` output is the base URL; call `<api_url>/hello`.
+
+The state key is `envs/dev/terraform.tfstate`. The endpoint is public and unauthenticated by design, throttled to 5 requests per second (burst 10), and returns a static JSON body.
 
 ## Rules
 
