@@ -1,6 +1,6 @@
 # Backend
 
-TypeScript on Node.js, deployed as AWS Lambda functions. **Status: not started.**
+TypeScript on Node.js, deployed as AWS Lambda functions. **Status:** only the throwaway `hello` smoke-test function exists; the planned functions below are not started.
 
 ## Planned functions
 
@@ -24,6 +24,8 @@ backend/
 ## Commands
 
 The backend is part of the npm workspace at the repository root. Run `npm install`, `npm run lint`, `npm run typecheck`, `npm test` and `npm run build` from the root. Unit tests are `*.test.ts` files next to the code. Functions import shared code as `@slotwise/shared`.
+
+Each function's `build` script bundles it with esbuild into `dist/index.mjs`; Terraform zips that file when it deploys.
 
 ## Conventions
 
