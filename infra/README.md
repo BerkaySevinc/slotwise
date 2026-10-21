@@ -48,4 +48,4 @@ The state key is `envs/dev/terraform.tfstate`. The endpoint is public and unauth
 - Terraform state is never committed (it can contain secrets). The `.terraform.lock.hcl` file is committed.
 - Variable files with real values are git-ignored; commit only `*.tfvars.example`.
 - No long-lived access keys. Deployments use short-lived credentials and run from the owner's machine for now (see ADR-0005 and ADR-0006).
-- All resource names start with the `slotwise` prefix plus the environment.
+- Resource names are `local.name_prefix` (`slotwise` plus the environment) followed by what the resource is, for example `slotwise-dev-api` or `slotwise-dev-users`. Do not use the bare prefix, except for a resource that is the environment itself (for example a VPC or a cluster).
