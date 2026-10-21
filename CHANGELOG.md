@@ -16,6 +16,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - Accepted ADR-0005: how CI reaches AWS without GitHub OIDC (supersedes the OIDC part of ADR-0003).
 - Terraform bootstrap state moves into its own S3 bucket (key `bootstrap/terraform.tfstate`, native S3 locking). The bucket name is derived at init time from the signed-in AWS account, so no file holds the account id.
 - Dev environment (`infra/envs/dev/`) with a throwaway `hello` Lambda (Node.js 24, arm64) behind a throttled HTTP API, to prove the deploy chain. The function lives in `backend/functions/hello/` with a unit test.
+- Accepted ADR-0006: defer the automated deploy pipeline; deployments stay manual until the project runs in an account that allows GitHub OIDC.
 - Root README: current status, a Getting started section (local development and AWS deployment prerequisites and commands) and the real CI/CD setup instead of the OIDC line.
 - GitHub Actions CI (`.github/workflows/ci.yml`): lint, format check, type check, tests and build, plus a gitleaks secret scan. Actions are pinned to commit SHAs and the workflow has read-only permissions.
 - Shared agent permission rules (`.claude/settings.json`): secret files (`.env` files at any depth, Terraform state, `*.tfvars`, `backend.hcl`, keys) cannot be read; apply, destroy, commit and push need confirmation.
