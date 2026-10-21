@@ -3,19 +3,6 @@ resource "aws_apigatewayv2_api" "http" {
   protocol_type = "HTTP"
 }
 
-resource "aws_apigatewayv2_integration" "hello" {
-  api_id                 = aws_apigatewayv2_api.http.id
-  integration_type       = "AWS_PROXY"
-  integration_uri        = aws_lambda_function.hello.invoke_arn
-  payload_format_version = "2.0"
-}
-
-resource "aws_apigatewayv2_route" "hello" {
-  api_id    = aws_apigatewayv2_api.http.id
-  route_key = "GET /hello"
-  target    = "integrations/${aws_apigatewayv2_integration.hello.id}"
-}
-
 resource "aws_apigatewayv2_stage" "default" {
   api_id      = aws_apigatewayv2_api.http.id
   name        = "$default"
@@ -27,10 +14,16 @@ resource "aws_apigatewayv2_stage" "default" {
   }
 }
 
-resource "aws_lambda_permission" "hello_from_api" {
-  statement_id  = "AllowInvokeFromHttpApi"
-  action        = "lambda:InvokeFunction"
-  function_name = aws_lambda_function.hello.function_name
-  principal     = "apigateway.amazonaws.com"
-  source_arn    = "${aws_apigatewayv2_api.http.execution_arn}/*/*"
+# Validates Cognito ID tokens. The ID token is used, not the access token, because only the ID token
+# carries custom:tenant_id and custom:role (the access token would need a Pre Token Generation trigger).
+resource "aws_apigatewayv2_authorizer" "cognito" {
+  api_id           = aws_apigatewayv2_api.http.id
+  name             = "${local.name_prefix}-cognito"
+  authorizer_type  = "JWT"
+  identity_sources = ["$request.header.Authorization"]
+
+  jwt_configuration {
+    issuer   = "https://${aws_cognito_user_pool.main.endpoint}"
+    audience = [aws_cognito_user_pool_client.web.id]
+  }
 }

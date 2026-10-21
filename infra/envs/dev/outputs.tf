@@ -17,3 +17,8 @@ output "user_pool_issuer" {
   description = "Issuer URL of the user pool, used by the API Gateway JWT authorizer."
   value       = "https://${aws_cognito_user_pool.main.endpoint}"
 }
+
+output "data_table_name" {
+  description = "Name of the application data table (used by the integration tests)."
+  value       = aws_dynamodb_table.data.name
+}
