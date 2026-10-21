@@ -39,6 +39,8 @@ Run it once per folder (and again when providers or the backend change).
 2. From `envs/dev/`: run the `terraform init` command from [State backend](#state-backend), then `terraform validate` and `terraform plan`.
 3. `terraform apply` creates cloud resources. Review the plan first. The `api_url` output is the base URL; call `<api_url>/hello`.
 
+`cognito.tf` holds the Cognito user pool and the browser app client (ADR-0001, ADR-0007). The pool has the custom attributes `custom:tenant_id` and `custom:role`; the app client reads them but cannot write them. The outputs `user_pool_id`, `user_pool_client_id` and `user_pool_issuer` feed the frontend and the API Gateway JWT authorizer. The pool sends email through Cognito's default sender (50 emails per day per AWS account); switch it to SES before real owners sign up. Changing the custom attributes replaces the pool and deletes its users.
+
 The state key is `envs/dev/terraform.tfstate`. The endpoint is public and unauthenticated by design, throttled to 5 requests per second (burst 10), and returns a static JSON body.
 
 ## Rules
@@ -46,4 +48,4 @@ The state key is `envs/dev/terraform.tfstate`. The endpoint is public and unauth
 - Terraform state is never committed (it can contain secrets). The `.terraform.lock.hcl` file is committed.
 - Variable files with real values are git-ignored; commit only `*.tfvars.example`.
 - No long-lived access keys. Deployments use short-lived credentials and run from the owner's machine for now (see ADR-0005 and ADR-0006).
-- All resource names start with the `slotwise` prefix plus the environment.
+- Resource names are `local.name_prefix` (`slotwise` plus the environment) followed by what the resource is, for example `slotwise-dev-api` or `slotwise-dev-users`. Do not use the bare prefix, except for a resource that is the environment itself (for example a VPC or a cluster).
