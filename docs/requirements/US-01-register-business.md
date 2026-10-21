@@ -57,3 +57,13 @@ These were chosen while writing the criteria and are open to change before imple
 3. Properties other than the three allowed ones are rejected rather than ignored (AC-01.2).
 4. The starting list of reserved slugs (AC-01.4).
 5. The owner lookup item is the one key that does not start with a tenant id (its key is defined with the key builders), like the slug lookup in ADR-0002.
+
+Decided while implementing:
+
+6. The default settings are stored as their own item (`T#{id}` / `SETTINGS`). ADR-0002's table does not list this item type; it follows the same tenant-prefixed key rule, so no new ADR is needed. The owner lookup item (`OWNER#{userId}` / `OWNER`) is likewise new to that table.
+7. Clients send the Cognito **ID token** to the API, because only it carries `custom:tenant_id` and `custom:role`. The authorizer checks issuer and audience (the app client id).
+8. `timeZone` must have the `Area/Location` form and be known to the runtime; it is stored in canonical spelling. Offsets and abbreviations are rejected.
+9. Idempotency compares the validated request in canonical form (so whitespace and key order do not matter) and is scoped to the user: the same key from two users never collides. A request with the same key that is still running returns `409 request_in_progress`. Records live 24 hours. Failed calls (409, 503) leave no record, so repeating them runs again.
+10. If DynamoDB keeps cancelling the registration transaction because of concurrent writes, the call returns `503 try_again` after a few short retries.
+11. A repeated call during `provisioning` also updates the name and time zone, not only the slug.
+12. The alarm for `provisioning_incomplete` has no notification target yet (no SNS topic exists); its state is visible in CloudWatch.

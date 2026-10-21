@@ -18,14 +18,19 @@
     "build": "npm run build --workspaces --if-present"
   },
   "devDependencies": {
+    "@aws-sdk/client-dynamodb": "3.1154.0",
+    "@aws-sdk/lib-dynamodb": "3.1154.0",
     "@eslint/js": "10.0.1",
     "@types/aws-lambda": "8.10.164",
     "@types/node": "24.19.2",
+    "ajv": "8.20.0",
     "esbuild": "0.28.2",
     "eslint": "10.13.0",
     "prettier": "3.9.10",
     "typescript": "6.0.3",
     "typescript-eslint": "8.71.2",
-    "vitest": "5.0.5"
+    "ulid": "3.0.2",
+    "vitest": "5.0.5",
+    "yaml": "2.9.1"
   }
 }
