@@ -8,6 +8,7 @@ Multi-tenant appointment booking platform for small businesses (first vertical: 
 - `backend/functions/<name>/`: one Lambda function per folder. `backend/packages/shared/`: shared code.
 - `frontend/`: React SPA. `infra/`: Terraform (`bootstrap/`, `modules/`, `envs/`). `tests/`: contract, concurrency, cross-tenant and end-to-end tests (unit tests live next to the code).
 - `docs/adr/`: architecture decision records (created with the first ADR). Read the relevant ADR before changing a decision it covers.
+- `docs/requirements/`: one file per user story (`US-NN-short-title.md`) with its acceptance criteria. Read the story's file before implementing it.
 - Each top-level component has a README. Read it before changing that component.
 
 ## Rules that must not be broken

@@ -1,6 +1,6 @@
 # API
 
-The OpenAPI contract (`openapi.yaml`) shared by the backend and the frontend. **Status: not started.**
+The OpenAPI contract (`openapi.yaml`) shared by the backend and the frontend. **Status:** skeleton with `POST /tenants` (US-01). Requirements and acceptance criteria are in [`docs/requirements/`](../docs/requirements/). Each story adds its endpoints here before the code.
 
 ## How it is used
 

@@ -1,0 +1,203 @@
+openapi: 3.1.0
+info:
+  title: Slotwise API
+  version: 0.1.0
+  description: |
+    Multi-tenant appointment booking API.
+
+    **Authentication.** Owners and staff sign in directly with Amazon Cognito; this API has no login endpoint (ADR-0007). Authenticated calls send the Cognito JWT as a bearer token. The tenant id and role are read from the verified token, never from the path, query or body.
+
+    **Users without a tenant.** A newly verified owner has a token without a tenant. That token is accepted only by `POST /tenants`; every other authenticated endpoint rejects it with `403 tenant_required`.
+
+    **Errors.** Errors returned by the application use the `Error` schema. Responses produced by API Gateway itself (`401` from the token check, `429` from throttling) have API Gateway's own body.
+servers:
+  - url: https://{apiHost}
+    variables:
+      apiHost:
+        default: api.example.com
+tags:
+  - name: Tenants
+    description: Business (tenant) registration.
+security:
+  - cognitoJwt: []
+paths:
+  /tenants:
+    post:
+      tags:
+        - Tenants
+      operationId: createTenant
+      summary: Create the caller's business
+      description: |
+        Creates the tenant for the signed-in owner (US-01). One user owns at most one tenant.
+
+        The tenant starts as `provisioning` and becomes `active` once the owner's tenant and role are set on the Cognito user; the response is returned after that. If the Cognito step fails the call returns `503 provisioning_incomplete` and can be repeated: while the tenant is still `provisioning`, a repeated call completes it and may carry a different slug.
+
+        After the response the client must refresh its tokens to get the tenant and role claims.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTenantRequest'
+      responses:
+        '201':
+          description: The tenant is created and active.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tenant'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          description: The slug is taken, or the caller already owns an active tenant.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                slugTaken:
+                  value:
+                    code: slug_taken
+                    message: This slug is already in use.
+                tenantAlreadyExists:
+                  value:
+                    code: tenant_already_exists
+                    message: This user already owns a tenant.
+        '422':
+          description: The Idempotency-Key was already used with a different request body.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: idempotency_key_mismatch
+                message: This Idempotency-Key was used with a different request.
+        '503':
+          description: The tenant was stored but could not be activated yet. Repeat the call.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: provisioning_incomplete
+                message: Setup is not finished. Try again.
+components:
+  securitySchemes:
+    cognitoJwt:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        JWT issued by the Amazon Cognito user pool, validated by the API Gateway JWT authorizer. Which token (ID or access token) carries the tenant and role claims is settled when the user pool is built (ADR-0007).
+  parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: A unique value per logical request, for example a UUID. Repeating a request with the same key returns the original result instead of repeating the work.
+      schema:
+        type: string
+        minLength: 8
+        maxLength: 128
+  responses:
+    ValidationFailed:
+      description: The body is missing, null, not valid JSON, or fails validation.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: validation_failed
+            message: The request is not valid.
+            details:
+              - field: slug
+                issue: reserved
+    Unauthorized:
+      description: The bearer token is missing, invalid or expired. The body is produced by API Gateway.
+  schemas:
+    Error:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: string
+          description: Stable, machine-readable error code.
+          examples:
+            - validation_failed
+        message:
+          type: string
+          description: Human-readable explanation. It never contains personal data.
+        details:
+          type: array
+          description: Field-level problems, present for validation errors.
+          items:
+            type: object
+            required:
+              - field
+              - issue
+            properties:
+              field:
+                type: string
+              issue:
+                type: string
+    CreateTenantRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - name
+        - slug
+        - timeZone
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+          description: Business name, shown on the public booking page.
+          examples:
+            - Ahmet Berber
+        slug:
+          type: string
+          minLength: 3
+          maxLength: 30
+          pattern: '^[a-z0-9]+(-[a-z0-9]+)*$'
+          description: Public address of the booking page (`/t/{slug}`). Lowercase letters, digits and single hyphens, not starting or ending with a hyphen. Reserved words are rejected. It does not change after the tenant is active.
+          examples:
+            - ahmet-berber
+        timeZone:
+          type: string
+          description: IANA time zone of the business, used for all availability.
+          examples:
+            - Europe/Istanbul
+    Tenant:
+      type: object
+      required:
+        - id
+        - name
+        - slug
+        - timeZone
+        - status
+        - createdAt
+      properties:
+        id:
+          type: string
+          description: Tenant id (ULID).
+        name:
+          type: string
+        slug:
+          type: string
+        timeZone:
+          type: string
+        status:
+          type: string
+          enum:
+            - provisioning
+            - active
+        createdAt:
+          type: string
+          format: date-time
