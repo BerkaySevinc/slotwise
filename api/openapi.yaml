@@ -53,7 +53,7 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
         '409':
-          description: The slug is taken, or the caller already owns an active tenant.
+          description: The slug is taken, the caller already owns an active tenant, or a request with the same Idempotency-Key is still being processed.
           content:
             application/json:
               schema:
@@ -67,6 +67,10 @@ paths:
                   value:
                     code: tenant_already_exists
                     message: This user already owns a tenant.
+                requestInProgress:
+                  value:
+                    code: request_in_progress
+                    message: The same request is still being processed.
         '422':
           description: The Idempotency-Key was already used with a different request body.
           content:
@@ -77,14 +81,20 @@ paths:
                 code: idempotency_key_mismatch
                 message: This Idempotency-Key was used with a different request.
         '503':
-          description: The tenant was stored but could not be activated yet. Repeat the call.
+          description: The tenant was stored but could not be activated yet (`provisioning_incomplete`), or the database was too busy (`try_again`). Repeat the call.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-              example:
-                code: provisioning_incomplete
-                message: Setup is not finished. Try again.
+              examples:
+                provisioningIncomplete:
+                  value:
+                    code: provisioning_incomplete
+                    message: Setup is not finished. Try again.
+                tryAgain:
+                  value:
+                    code: try_again
+                    message: The service is busy. Try again.
 components:
   securitySchemes:
     cognitoJwt:
@@ -92,7 +102,7 @@ components:
       scheme: bearer
       bearerFormat: JWT
       description: |
-        JWT issued by the Amazon Cognito user pool, validated by the API Gateway JWT authorizer. Which token (ID or access token) carries the tenant and role claims is settled when the user pool is built (ADR-0007).
+        JWT issued by the Amazon Cognito user pool, validated by the API Gateway JWT authorizer. Clients send the **ID token**, not the access token: only the ID token carries `custom:tenant_id` and `custom:role` (the access token would need a Pre Token Generation trigger). The authorizer checks the issuer and that the audience is the app client.
   parameters:
     IdempotencyKey:
       name: Idempotency-Key
@@ -171,7 +181,7 @@ components:
             - ahmet-berber
         timeZone:
           type: string
-          description: IANA time zone of the business, used for all availability.
+          description: IANA time zone of the business in `Area/Location` form, used for all availability. The response returns the canonical spelling (for example `europe/istanbul` is stored as `Europe/Istanbul`). UTC offsets and abbreviations such as `+03:00` or `EST` are rejected.
           examples:
             - Europe/Istanbul
     Tenant:
