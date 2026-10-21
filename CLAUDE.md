@@ -52,7 +52,8 @@ Rule: use the newest stable line that AWS Lambda supports as generally available
 - **Node.js 24**, the latest LTS line (Lambda runtime `nodejs24.x`, supported until April 2028). Not 22: an older LTS whose Lambda runtime is deprecated in April 2027. Not 26: it is the Current line and its Lambda runtime is in preview until about November 2026. npm workspaces come with Node.
 - **TypeScript 6.0** in strict mode. TypeScript 7.0 is stable, but typescript-eslint does not support it yet (peer range below 6.1); revisit when it does.
 - ESLint 10 with typescript-eslint 8, Prettier 3.
-- Vitest 5, zod 4, AWS Lambda Powertools for TypeScript 2.x (logging, tracing, idempotency), esbuild 0.28 (pin the minor version; 0.x releases can break).
+- Vitest 5, zod 4, AWS Lambda Powertools for TypeScript 2.x (logging, tracing, idempotency), AWS SDK for JavaScript v3, ULID ids (`ulid`, ADR-0002), esbuild 0.28 (pin the minor version; 0.x releases can break).
+- Test-only: `ajv` and `yaml` for the OpenAPI contract tests.
 - Frontend: React 19, Vite 8.
 - Infrastructure: Terraform 1.16, AWS provider 6.x.
 

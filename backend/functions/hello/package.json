@@ -1,9 +1,0 @@
-{
-  "name": "@slotwise/hello",
-  "version": "0.0.0",
-  "private": true,
-  "type": "module",
-  "scripts": {
-    "build": "esbuild src/handler.ts --bundle --platform=node --target=node24 --format=esm --outfile=dist/index.mjs"
-  }
-}

@@ -1,6 +1,16 @@
 # Tests
 
-Cross-component tests: contract, concurrency, cross-tenant, smoke, regression and end-to-end. Unit tests live next to the code in `backend/` and `frontend/`. **Status: not started.**
+Cross-component tests: contract, concurrency, cross-tenant, smoke, regression and end-to-end. Unit tests live next to the code in `backend/` and `frontend/`. **Status:** `integration/tenant-registration.int.test.ts` covers US-01 against a real DynamoDB table.
+
+## Running the integration tests
+
+They are skipped unless a table is named. After the dev stack is applied:
+
+```
+AWS_PROFILE=slotwise SLOTWISE_DATA_TABLE=slotwise-dev-data npm test
+```
+
+The test writes random slugs and user ids and deletes what it created. It replaces Cognito with a fake, so it does not cover the Cognito call.
 
 ## Planned suites
 

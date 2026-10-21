@@ -3,6 +3,6 @@
   "compilerOptions": {
     "noEmit": true
   },
-  "include": ["backend/**/*.ts", "*.config.ts"],
+  "include": ["backend/**/*.ts", "tests/**/*.ts", "*.config.ts"],
   "exclude": ["**/node_modules", "**/dist"]
 }
