@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted
+Accepted. The CodeBuild deploy path is superseded by ADR-0006 (automated deployment is deferred); the rest of this decision still stands.
 
 ## Context
 

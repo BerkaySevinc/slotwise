@@ -11,7 +11,7 @@ A multi-tenant online booking platform for small appointment-based businesses (b
 - **Async work:** EventBridge, EventBridge Scheduler, SQS with a DLQ, SES
 - **Frontend:** React + Vite + TypeScript, hosted on S3 + CloudFront
 - **Infrastructure:** Terraform
-- **CI/CD:** GitHub Actions runs lint, type check, tests, build and secret scanning. Deployments run from the owner's machine for now; an AWS CodeBuild pipeline is planned because the account cannot use GitHub OIDC (see [ADR-0005](docs/adr/0005-ci-access-to-aws-without-github-oidc.md)).
+- **CI/CD:** GitHub Actions runs lint, type check, tests, build and secret scanning. Deployments run from the owner's machine for now, because the account cannot use GitHub OIDC (see [ADR-0005](docs/adr/0005-ci-access-to-aws-without-github-oidc.md)); an automated deploy pipeline waits for an account that allows it (see [ADR-0006](docs/adr/0006-defer-automated-deployment.md)).
 
 ## Getting started
 
