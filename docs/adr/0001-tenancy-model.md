@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted
+Accepted. The statement that Cognito self sign-up is disabled and that registration runs through a backend function is superseded by ADR-0007; the rest of this decision still stands.
 
 ## Context
 
