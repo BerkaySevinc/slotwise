@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "esbuild src/handler.ts --bundle --platform=node --target=node24 --format=esm --outfile=dist/index.mjs"
+    "build": "esbuild src/handler.ts --bundle --platform=node --target=node24 --format=esm --outfile=dist/index.mjs \"--banner:js=import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);\" && node --input-type=module -e \"for (const k of ['DATA_TABLE','IDEMPOTENCY_TABLE','USER_POOL_ID']) process.env[k]='x'; await import('./dist/index.mjs')\""
   },
   "dependencies": {
     "@aws-lambda-powertools/idempotency": "2.36.0",
