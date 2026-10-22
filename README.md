@@ -60,4 +60,4 @@ Foundation, core booking, notifications and branding, then hardening and a pilot
 
 ## License
 
-To be decided before the first release.
+Released under the [MIT License](LICENSE). The choice can change later; see [ADR-0008](docs/adr/0008-license.md) for the reasons and for when it will be revisited.
