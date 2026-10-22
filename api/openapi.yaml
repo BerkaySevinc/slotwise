@@ -21,6 +21,8 @@ servers:
 tags:
   - name: Tenants
     description: Business (tenant) registration.
+  - name: Services
+    description: The services a business offers (US-03).
 security:
   - cognitoJwt: []
 paths:
@@ -98,6 +100,140 @@ paths:
                   value:
                     code: try_again
                     message: The service is busy. Try again.
+  /services:
+    post:
+      tags:
+        - Services
+      operationId: createService
+      summary: Create a service
+      description: |
+        Creates a service for the caller's tenant (US-03). Owner only. There is no `Idempotency-Key`: repeating the call creates another service.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateServiceRequest'
+      responses:
+        '201':
+          description: The service is created and active.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Service'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    get:
+      tags:
+        - Services
+      operationId: listServices
+      summary: List services
+      description: |
+        Lists the caller's services in creation order, 50 per page by default. Retired services are left out unless `includeInactive` is true. Owner and staff.
+      parameters:
+        - name: includeInactive
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: false
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+        - name: nextToken
+          in: query
+          required: false
+          description: The `nextToken` of the previous page. Opaque; it is only valid for the tenant it was issued to.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: One page of services.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServiceList'
+        '400':
+          description: A query parameter is not valid, or `nextToken` is malformed or was not issued for the caller's tenant (`invalid_page_token`).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                validationFailed:
+                  value:
+                    code: validation_failed
+                    message: The request is not valid.
+                    details:
+                      - field: limit
+                        issue: too_big
+                invalidPageToken:
+                  value:
+                    code: invalid_page_token
+                    message: The page token is not valid.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /services/{serviceId}:
+    parameters:
+      - $ref: '#/components/parameters/ServiceId'
+    get:
+      tags:
+        - Services
+      operationId: getService
+      summary: Get a service
+      description: Returns a service of the caller's tenant, active or not. Owner and staff.
+      responses:
+        '200':
+          description: The service.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Service'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags:
+        - Services
+      operationId: updateService
+      summary: Change or retire a service
+      description: |
+        Changes only the properties that are sent. `active: false` retires the service and `active: true` restores it; there is no delete. Duration plus buffer is checked on the resulting values. Existing appointments keep their own snapshot. Owner only.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateServiceRequest'
+      responses:
+        '200':
+          description: The updated service.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Service'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
 components:
   securitySchemes:
     cognitoJwt:
@@ -116,7 +252,38 @@ components:
         type: string
         minLength: 8
         maxLength: 128
+    ServiceId:
+      name: serviceId
+      in: path
+      required: true
+      description: Service id (ULID).
+      schema:
+        type: string
   responses:
+    Forbidden:
+      description: The caller has no tenant yet (`tenant_required`), or the role may not do this (`forbidden`).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            tenantRequired:
+              value:
+                code: tenant_required
+                message: Create your business first.
+            forbidden:
+              value:
+                code: forbidden
+                message: Your role may not do this.
+    NotFound:
+      description: No such resource in the caller's tenant. A resource of another tenant looks the same.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: not_found
+            message: Not found.
     ValidationFailed:
       description: The body is missing, null, not valid JSON, or fails validation.
       content:
@@ -214,3 +381,105 @@ components:
         createdAt:
           type: string
           format: date-time
+    CreateServiceRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - name
+        - durationMinutes
+        - priceMinor
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 80
+          description: Shown to customers. Trimmed. Names need not be unique.
+          examples:
+            - Haircut
+        durationMinutes:
+          type: integer
+          minimum: 5
+          maximum: 480
+          multipleOf: 5
+          description: What the customer books. Duration plus buffer is at most 480.
+          examples:
+            - 30
+        bufferMinutes:
+          type: integer
+          minimum: 0
+          maximum: 60
+          multipleOf: 5
+          default: 0
+          description: Extra time kept free after the service (cleaning, preparation). It is not shown to customers.
+        priceMinor:
+          type: integer
+          minimum: 0
+          maximum: 100000000
+          description: "Price in the smallest unit of the tenant's currency (for TRY, kuruş: 25050 is 250.50)."
+          examples:
+            - 25050
+    UpdateServiceRequest:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 80
+        durationMinutes:
+          type: integer
+          minimum: 5
+          maximum: 480
+          multipleOf: 5
+        bufferMinutes:
+          type: integer
+          minimum: 0
+          maximum: 60
+          multipleOf: 5
+        priceMinor:
+          type: integer
+          minimum: 0
+          maximum: 100000000
+        active:
+          type: boolean
+          description: '`false` retires the service; `true` restores it.'
+    Service:
+      type: object
+      required:
+        - id
+        - name
+        - durationMinutes
+        - bufferMinutes
+        - priceMinor
+        - active
+        - createdAt
+      properties:
+        id:
+          type: string
+          description: Service id (ULID).
+        name:
+          type: string
+        durationMinutes:
+          type: integer
+        bufferMinutes:
+          type: integer
+        priceMinor:
+          type: integer
+        active:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+    ServiceList:
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Service'
+        nextToken:
+          type: string
+          description: Present when more services follow. Send it back as `nextToken` to get the next page.
