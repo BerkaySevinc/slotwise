@@ -23,7 +23,8 @@ import {
   type TenantStatus,
 } from './create-tenant.js';
 
-const MAX_CONFLICT_RETRIES = 4;
+const MAX_CONFLICT_RETRIES = 8;
+const MAX_BACKOFF_MS = 400;
 const RETRYABLE_CODES = new Set([
   'TransactionConflict',
   'ThrottlingError',
@@ -87,6 +88,7 @@ export class DynamoTenantRepository implements TenantRepository {
         ],
       },
       classifyCreate,
+      () => this.slugTaken(tenant.slug),
     );
   }
 
@@ -98,9 +100,10 @@ export class DynamoTenantRepository implements TenantRepository {
       Update: {
         TableName: this.tableName,
         Key: tenantProfileKey(tenant.id),
-        UpdateExpression: 'SET #name = :name, slug = :slug, timeZone = :tz',
+        // `name` and `timeZone` are DynamoDB reserved words, so they are aliased.
+        UpdateExpression: 'SET #name = :name, slug = :slug, #tz = :tz',
         ConditionExpression: '#status = :provisioning',
-        ExpressionAttributeNames: { '#name': 'name', '#status': 'status' },
+        ExpressionAttributeNames: { '#name': 'name', '#tz': 'timeZone', '#status': 'status' },
         ExpressionAttributeValues: {
           ':name': changes.name,
           ':slug': changes.slug,
@@ -129,7 +132,9 @@ export class DynamoTenantRepository implements TenantRepository {
         },
       );
     }
-    await this.transact({ TransactItems: items }, classifyUpdate);
+    await this.transact({ TransactItems: items }, classifyUpdate, () =>
+      changes.slug === tenant.slug ? Promise.resolve(undefined) : this.slugTaken(changes.slug),
+    );
   }
 
   async activate(tenantId: string): Promise<void> {
@@ -145,9 +150,18 @@ export class DynamoTenantRepository implements TenantRepository {
     );
   }
 
+  /** A committed slug item means the slug is taken; this read only classifies a failed write. */
+  private async slugTaken(slug: string): Promise<Error | undefined> {
+    const out = await this.db.send(
+      new GetCommand({ TableName: this.tableName, Key: slugKey(slug), ConsistentRead: true }),
+    );
+    return out.Item === undefined ? undefined : new SlugTakenError();
+  }
+
   private async transact(
     input: TransactWriteCommandInput,
     classify: (reasons: CancellationReason[]) => Error | undefined,
+    resolveConflict: () => Promise<Error | undefined>,
   ): Promise<void> {
     for (let attempt = 0; ; attempt++) {
       try {
@@ -158,8 +172,12 @@ export class DynamoTenantRepository implements TenantRepository {
         const reasons = e.CancellationReasons ?? [];
         const retryable = reasons.some((r) => r.Code !== undefined && RETRYABLE_CODES.has(r.Code));
         if (!retryable) throw classify(reasons) ?? e;
+        // Under heavy contention many callers fight over the same slug item. Once its writer has
+        // committed, the answer is known without another transaction.
+        const settled = await resolveConflict();
+        if (settled) throw settled;
         if (attempt >= MAX_CONFLICT_RETRIES) throw new TransactionConflictError();
-        await this.sleep(25 * 2 ** attempt + Math.random() * 25);
+        await this.sleep(Math.min(25 * 2 ** attempt, MAX_BACKOFF_MS) + Math.random() * 25);
       }
     }
   }

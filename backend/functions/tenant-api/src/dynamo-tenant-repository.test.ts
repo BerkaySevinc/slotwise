@@ -1,5 +1,9 @@
 import { TransactionCanceledException } from '@aws-sdk/client-dynamodb';
-import { TransactWriteCommand, type DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
+import {
+  GetCommand,
+  TransactWriteCommand,
+  type DynamoDBDocumentClient,
+} from '@aws-sdk/lib-dynamodb';
 import { describe, expect, it } from 'vitest';
 import {
   NotProvisioningError,
@@ -27,11 +31,13 @@ const cancelled = (...codes: string[]): TransactionCanceledException =>
     CancellationReasons: codes.map((Code) => ({ Code })),
   });
 
-function repoWith(responses: (Error | undefined)[]) {
+/** `slugItem` is what a consistent read of the slug item returns (undefined: the slug is free). */
+function repoWith(responses: (Error | undefined)[], slugItem?: Record<string, unknown>) {
   const sent: unknown[] = [];
   const queue = [...responses];
   const db = {
     send: (command: unknown) => {
+      if (command instanceof GetCommand) return Promise.resolve({ Item: slugItem });
       sent.push(command);
       const next = queue.shift();
       return next ? Promise.reject(next) : Promise.resolve({});
@@ -88,6 +94,14 @@ describe('createProvisioning', () => {
     expect(sent).toHaveLength(2);
   });
 
+  it('reports the slug as taken as soon as a conflict shows a committed slug item', async () => {
+    const { repo, sent } = repoWith([cancelled('None', 'None', 'TransactionConflict', 'None')], {
+      PK: 'SLUG#ahmet-berber',
+    });
+    await expect(repo.createProvisioning(tenant)).rejects.toBeInstanceOf(SlugTakenError);
+    expect(sent).toHaveLength(1);
+  });
+
   it('succeeds when a retry goes through', async () => {
     const { repo, sent } = repoWith([cancelled('None', 'None', 'TransactionConflict', 'None')]);
     await repo.createProvisioning(tenant);
@@ -122,6 +136,18 @@ describe('updateProvisioning', () => {
     expect(items[1]?.Put?.Item?.['PK']).toBe('SLUG#new-slug');
     expect(items[1]?.Put?.ConditionExpression).toBe('attribute_not_exists(PK)');
     expect(items[2]?.Delete?.Key).toEqual({ PK: 'SLUG#ahmet-berber', SK: 'SLUG' });
+  });
+
+  it('aliases the reserved words name and timeZone in the update expression', async () => {
+    const { repo, sent } = repoWith([]);
+    await repo.updateProvisioning(tenant, {
+      name: 'N',
+      slug: tenant.slug,
+      timeZone: 'Europe/Berlin',
+    });
+    const update = (sent[0] as TransactWriteCommand).input.TransactItems?.[0]?.Update;
+    expect(update?.UpdateExpression).toBe('SET #name = :name, slug = :slug, #tz = :tz');
+    expect(update?.ExpressionAttributeNames).toMatchObject({ '#name': 'name', '#tz': 'timeZone' });
   });
 
   it('does not touch slug items when the slug is unchanged', async () => {

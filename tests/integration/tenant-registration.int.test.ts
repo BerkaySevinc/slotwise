@@ -51,7 +51,11 @@ describe.skipIf(tableName === undefined)('tenant registration against DynamoDB',
       createdTenants.push({ id: t.id, slug: s, ownerId: userId });
       return { ok: true as const, tenant: t };
     } catch (e) {
-      return { ok: false as const, code: (e as { code?: string }).code };
+      return {
+        ok: false as const,
+        code: (e as { code?: string }).code,
+        detail: e instanceof Error ? `${e.name}: ${e.message}` : String(e),
+      };
     }
   }
 
@@ -59,12 +63,14 @@ describe.skipIf(tableName === undefined)('tenant registration against DynamoDB',
     (await db.send(new GetCommand({ TableName: table, Key: key, ConsistentRead: true }))).Item;
 
   afterAll(async () => {
-    const keys = createdTenants.flatMap((t) => [
+    const allKeys = createdTenants.flatMap((t) => [
       tenantProfileKey(t.id),
       tenantSettingsKey(t.id),
       slugKey(t.slug),
       ownerKey(t.ownerId),
     ]);
+    // A tenant can be recorded twice (created, then completed on a retry); a batch rejects duplicates.
+    const keys = [...new Map(allKeys.map((k) => [`${k.PK}|${k.SK}`, k])).values()];
     for (let i = 0; i < keys.length; i += 25) {
       await db.send(
         new BatchWriteCommand({
@@ -91,13 +97,13 @@ describe.skipIf(tableName === undefined)('tenant registration against DynamoDB',
   it('rejects a taken slug and writes nothing for the loser (AC-01.11)', async () => {
     await register(user('b1'), slug('b'));
     const r = await register(user('b2'), slug('b'));
-    expect(r).toEqual({ ok: false, code: 'slug_taken' });
+    expect(r).toMatchObject({ ok: false, code: 'slug_taken' });
     expect(await exists(ownerKey(user('b2')))).toBeUndefined();
   });
 
   it('rejects a second tenant for the same user (AC-01.14)', async () => {
     await register(user('c'), slug('c1'));
-    expect(await register(user('c'), slug('c2'))).toEqual({
+    expect(await register(user('c'), slug('c2'))).toMatchObject({
       ok: false,
       code: 'tenant_already_exists',
     });
@@ -106,7 +112,7 @@ describe.skipIf(tableName === undefined)('tenant registration against DynamoDB',
 
   it('completes a provisioning tenant on a repeated call and may change the slug (AC-01.16, 01.17)', async () => {
     cognitoFails = true;
-    expect(await register(user('d'), slug('d1'))).toEqual({
+    expect(await register(user('d'), slug('d1'))).toMatchObject({
       ok: false,
       code: 'provisioning_incomplete',
     });
@@ -117,6 +123,8 @@ describe.skipIf(tableName === undefined)('tenant registration against DynamoDB',
     expect(await exists(tenantProfileKey(tenantId))).toMatchObject({ status: 'provisioning' });
 
     const r = await register(user('d'), slug('d2'));
+    // The detail of a failure is part of the message, so a rejected call is easy to diagnose.
+    expect(r.ok ? 'ok' : r.detail).toBe('ok');
     expect(r.ok && r.tenant.id).toBe(tenantId);
     expect(await exists(slugKey(slug('d1')))).toBeUndefined();
     expect(await exists(slugKey(slug('d2')))).toMatchObject({ tenantId });
@@ -130,8 +138,9 @@ describe.skipIf(tableName === undefined)('tenant registration against DynamoDB',
     const results = await Promise.all(
       Array.from({ length: 50 }, (_, i) => register(user(`p${String(i)}`), slug('race'))),
     );
-    const outcomes = results.map((r) => (r.ok ? 'created' : r.code));
-    expect(outcomes.filter((o) => o === 'created')).toHaveLength(1);
-    expect(outcomes.filter((o) => o === 'slug_taken')).toHaveLength(49);
+    const outcomes = results.map((r) => (r.ok ? 'created' : (r.code ?? r.detail)));
+    const counts: Record<string, number> = {};
+    for (const o of outcomes) counts[o] = (counts[o] ?? 0) + 1;
+    expect(counts).toEqual({ created: 1, slug_taken: 49 });
   }, 60_000);
 });
