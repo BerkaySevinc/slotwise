@@ -7,6 +7,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- MIT `LICENSE`, with the license named in the README, `package.json` and `api/openapi.yaml`, and ADR-0008 (proposed) with the reasons and the conditions for revisiting it.
 - Repository layout (`api/`, `backend/`, `frontend/`, `infra/`, `tests/`, `docs/`) with a README per component.
 - `CLAUDE.md` with the working rules for AI coding agents.
 - Accepted ADRs: tenancy model (0001), DynamoDB data model and slot locking (0002), infrastructure as code with Terraform (0003).
