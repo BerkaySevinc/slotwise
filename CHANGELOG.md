@@ -28,6 +28,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - Contract test (responses of `POST /tenants` against `api/openapi.yaml`) and a log-content test for AC-01.19. `ajv` and `yaml` are test-only dependencies.
 - Shared agent permission rules (`.claude/settings.json`): secret files (`.env` files at any depth, Terraform state, `*.tfvars`, `backend.hcl`, keys) cannot be read; apply, destroy, commit and push need confirmation.
 
+### Fixed
+
+- `tenant-api`: the provisioning-recovery update used the DynamoDB reserved word `timeZone` and was rejected; it is aliased now.
+- `tenant-api`: under 50 parallel registrations some callers got `503 try_again` instead of `409 slug_taken`. After a transaction conflict the repository reads the slug item and retries with a longer, capped backoff.
+- `tenant-api`: the ESM bundle failed at Lambda init (`Dynamic require of "node:https"`); the bundle gets a `createRequire` banner, and the build now imports the bundle as an ES module so this fails at build time.
+
 ### Removed
 
 - The throwaway `hello` Lambda, its route and Terraform resources; `tenant-api` is the first real function.

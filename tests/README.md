@@ -10,7 +10,7 @@ They are skipped unless a table is named. After the dev stack is applied:
 AWS_PROFILE=slotwise SLOTWISE_DATA_TABLE=slotwise-dev-data npm test
 ```
 
-The test writes random slugs and user ids and deletes what it created. It replaces Cognito with a fake, so it does not cover the Cognito call.
+The test writes random slugs and user ids and deletes what it created. It runs the repository code from the source tree against the real table; it does not call the deployed Lambda or API Gateway. It replaces Cognito with a fake, so it does not cover the Cognito call.
 
 ## Planned suites
 

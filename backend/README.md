@@ -44,6 +44,16 @@ Items written by the registration transaction (keys are built only in `packages/
 
 Test coverage: unit tests use an in-memory repository and a stubbed DynamoDB client, so they prove the logic and the mapping of DynamoDB's cancellation reasons, not DynamoDB itself. Transaction atomicity and the 50-parallel-request slug test run against the deployed table (see [`tests/`](../tests/README.md)). The Cognito call and the API Gateway authorizer are verified by hand after a deploy.
 
+## Verify against dev before merging
+
+Unit tests use fakes, so they cannot catch problems that only AWS shows. The first deployment of `tenant-api` found three: DynamoDB rejected the reserved word `timeZone` in an update expression, 13 of 50 parallel callers got `503` instead of `409` after transaction conflicts, and the ESM bundle failed at Lambda init with `Dynamic require of "node:https" is not supported`. None of them showed in unit tests. For a change that touches AWS:
+
+1. `npm run build`. The `tenant-api` build also imports the finished bundle as an ES module, the way Lambda loads it, so a bundle that cannot start fails here. Do not test the bundle with `node -e` (it has a global `require` that hides this class of error).
+2. `terraform plan` from `infra/envs/dev/`, then `apply` with the owner's confirmation, from the feature branch.
+3. Run the integration tests against the dev tables: `SLOTWISE_DATA_TABLE=slotwise-dev-data npm test`.
+4. Call the deployed API with a real token when the change involves Cognito or the authorizer.
+5. Merge, so that `main` matches what is deployed.
+
 ## Conventions
 
 - One Lambda is one folder under `functions/`; there is no folder per endpoint. When a function gets its second feature, group its `src/` by feature (`tenants/`, `branding/`), not by layer, and put shared HTTP helpers in `http/`.
