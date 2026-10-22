@@ -27,6 +27,7 @@ Multi-tenant appointment booking platform for small businesses (first vertical: 
 - A change is done when its criteria are met, tests pass, `api/openapi.yaml` is updated, infrastructure is in code and the docs are current.
 - Update the affected component README, `CHANGELOG.md` (under `[Unreleased]`) and this file in the same change that makes them out of date. Do not rewrite unrelated docs. Component READMEs explain how to run, test and deploy that component.
 - A change that touches AWS is verified in the dev environment before it is merged: apply it from the feature branch (only with the owner's confirmation), run the integration tests against the dev tables, then merge. Unit tests with fakes do not check DynamoDB, Cognito or the Lambda bundle (see `backend/README.md`).
+- The README section "Before real users" lists what must change before real people sign up (today: move Cognito email to SES). Keep it current and look at it at the start of each phase.
 - Make the smallest change that satisfies the story. Do not add features, abstractions or configuration that no story needs.
 - Design for growth in tenants and data without a redesign. Data that can grow with the number of tenants or appointments is read through a key or GSI, list endpoints are paginated, asynchronous handlers are idempotent, and no job loads all tenants at once. A scan or an unpaginated read is acceptable only on data that is small and bounded by design; say so in a comment. Do not build capacity for load no story needs.
 - If a requirement is ambiguous, ask.
