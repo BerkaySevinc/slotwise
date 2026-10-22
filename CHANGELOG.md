@@ -7,6 +7,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- README section "Before real users", with the move of the Cognito email to SES and the end of the AWS Free plan.
 - MIT `LICENSE`, with the license named in the README, `package.json` and `api/openapi.yaml`, and the accepted ADR-0008 with the reasons and the conditions for revisiting it.
 - Repository layout (`api/`, `backend/`, `frontend/`, `infra/`, `tests/`, `docs/`) with a README per component.
 - `CLAUDE.md` with the working rules for AI coding agents.
