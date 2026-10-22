@@ -48,6 +48,25 @@ Written before implementation. Design background is in [ADR-0007](../adr/0007-ow
 - **Cross-tenant negative tests:** `POST /tenants` takes no tenant id, so the case that applies is AC-01.2: a tenant id, owner or role in the body is rejected and never used. The reusable cross-tenant test helper, "request as tenant A for a resource of tenant B returns `404`", is added with the first story that has a tenant resource.
 - **Contract:** the responses of `POST /tenants` match `api/openapi.yaml`.
 
+## Verification status
+
+Checked on 2026-10-22 against the dev stack. "Unit" means fakes only; "integration" runs the repository code against the real dev table (`tests/integration/`); "end-to-end" is a manual run with a real Cognito user against the deployed API (the script was throwaway and is not in the repository).
+
+| Criteria | Verified by | Status |
+|---|---|---|
+| AC-01.1, 01.2 | Unit, contract; end-to-end: malformed JSON and an unknown property return `400` | Verified |
+| AC-01.3, 01.4, 01.5 | Unit (slug, reserved words, `Europe/Istanbul` and `Europe/Berlin`) | Verified |
+| AC-01.6 | Unit; end-to-end: a missing key returns `400` | Verified |
+| AC-01.7, 01.10 | End-to-end: `201`, and after a token refresh the ID token carries `custom:tenant_id` and `custom:role = owner` | Verified |
+| AC-01.8, 01.9 | Integration: all four items exist, the loser of a conflict leaves nothing, the settings item holds the defaults | Verified |
+| AC-01.11, 01.12 | Integration: duplicate slug returns `409`; 50 parallel requests give exactly 1 success and 49 `slug_taken` (repeated runs) | Verified |
+| AC-01.13 | By design and review: the slug is decided by the conditional write. After a cancelled transaction the repository reads the slug item only to classify the failure | Verified |
+| AC-01.14, 01.15 | Integration: a second tenant returns `409 tenant_already_exists`. End-to-end: the same key and body replays the `201`, the same key with another body returns `422`, a new key returns `409` | Verified |
+| AC-01.16 | Integration with a fake Cognito failure: the tenant stays `provisioning` and a repeated call completes it. The `503`, the metric and the alarm were not triggered against the real Cognito or CloudWatch | Partly verified |
+| AC-01.17 | Integration: the slug is replaced in one transaction while `provisioning` (this found the `timeZone` reserved-word bug) | Verified |
+| AC-01.18 | Waits for the first public endpoint (US-08) | Open |
+| AC-01.19 | Unit test of everything the application logs; the real logs of the end-to-end run contain no email, business name, slug or time zone, only `tenant active` and the tenant id. The error paths were not exercised against the real logger | Partly verified |
+
 ## Choices to confirm
 
 These were chosen while writing the criteria and are open to change before implementation:
