@@ -1,6 +1,6 @@
 import type { APIGatewayProxyEventV2WithJWTAuthorizer } from 'aws-lambda';
 import { describe, expect, it } from 'vitest';
-import { getCaller, requireTenant } from './auth.js';
+import { getCaller, requireRole, requireTenant } from './auth.js';
 import { ApiError } from './errors.js';
 
 const TENANT = '01JABCDEFGHJKMNPQRSTVWXYZ0';
@@ -47,4 +47,24 @@ describe('requireTenant', () => {
       }
     },
   );
+});
+
+describe('requireRole', () => {
+  const caller = (role: 'owner' | 'staff') => ({ userId: 'u1', tenantId: TENANT, role });
+  it('passes an allowed role', () => {
+    expect(() => {
+      requireRole(caller('owner'), 'owner');
+    }).not.toThrow();
+    expect(() => {
+      requireRole(caller('staff'), 'owner', 'staff');
+    }).not.toThrow();
+  });
+  it('throws 403 forbidden for any other role', () => {
+    try {
+      requireRole(caller('staff'), 'owner');
+      expect.unreachable();
+    } catch (e) {
+      expect(e).toMatchObject({ statusCode: 403, code: 'forbidden' });
+    }
+  });
 });
