@@ -175,7 +175,7 @@ paths:
                     message: The request is not valid.
                     details:
                       - field: limit
-                        issue: too_big
+                        issue: too_large
                 invalidPageToken:
                   value:
                     code: invalid_page_token

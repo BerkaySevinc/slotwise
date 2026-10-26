@@ -1,0 +1,17 @@
+{
+  "name": "@slotwise/catalog-api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "esbuild src/handler.ts --bundle --platform=node --target=node24 --format=esm --outfile=dist/index.mjs \"--banner:js=import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);\" && node --input-type=module -e \"process.env.DATA_TABLE='x'; await import('./dist/index.mjs')\""
+  },
+  "dependencies": {
+    "@aws-lambda-powertools/logger": "2.36.0",
+    "@aws-sdk/client-dynamodb": "3.1154.0",
+    "@aws-sdk/lib-dynamodb": "3.1154.0",
+    "@slotwise/shared": "0.0.0",
+    "ulid": "3.0.2",
+    "zod": "4.6.7"
+  }
+}
