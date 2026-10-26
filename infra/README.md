@@ -1,6 +1,6 @@
 # Infrastructure
 
-Terraform code for every AWS resource in the project. Nothing is created by hand in the console. **Status:** the bootstrap is applied; the dev environment holds the Cognito user pool and (once applied) the tenant data tables and `tenant-api`.
+Terraform code for every AWS resource in the project. Nothing is created by hand in the console. **Status:** the bootstrap is applied; the dev environment holds the Cognito user pool and (once applied) the tenant data tables, `tenant-api` and `catalog-api`.
 
 ## Planned layout
 
@@ -33,7 +33,7 @@ Run it once per folder (and again when providers or the backend change).
 
 ## Dev environment
 
-`envs/dev/` holds the development stack: an HTTP API (`slotwise-dev-api`), the Cognito user pool, the data tables and the `tenant-api` Lambda.
+`envs/dev/` holds the development stack: an HTTP API (`slotwise-dev-api`), the Cognito user pool, the data tables and the `tenant-api` and `catalog-api` Lambdas.
 
 1. Build the function bundles from the repository root: `npm run build`. Terraform zips each `backend/functions/<name>/dist/index.mjs`.
 2. From `envs/dev/`: run the `terraform init` command from [State backend](#state-backend), then `terraform validate` and `terraform plan`.
@@ -41,7 +41,7 @@ Run it once per folder (and again when providers or the backend change).
 
 `cognito.tf` holds the Cognito user pool and the browser app client (ADR-0001, ADR-0007). The pool has the custom attributes `custom:tenant_id` and `custom:role`; the app client reads them but cannot write them. The outputs `user_pool_id`, `user_pool_client_id` and `user_pool_issuer` feed the frontend and the API Gateway JWT authorizer. The pool sends email through Cognito's default sender (50 emails per day per AWS account); switch it to SES before real owners sign up. Changing the custom attributes replaces the pool and deletes its users.
 
-`dynamodb.tf` holds the application table (`slotwise-dev-data`, ADR-0002: `PK`/`SK`, `GSI1` to `GSI4`, on-demand, point-in-time recovery, TTL attribute `expiresAt`) and the Powertools idempotency table (`slotwise-dev-idempotency`, key `id`, TTL attribute `expiration`). `tenant_api.tf` holds the `tenant-api` Lambda with its least-privilege role, the `POST /tenants` route and the alarm for failed Cognito provisioning. The route is protected by a JWT authorizer (`api.tf`) that expects the Cognito **ID token** (only it carries the tenant and role claims). Run `npm run build` before `terraform plan` so both bundles exist. Output `data_table_name` is used by the integration tests.
+`dynamodb.tf` holds the application table (`slotwise-dev-data`, ADR-0002: `PK`/`SK`, `GSI1` to `GSI4`, on-demand, point-in-time recovery, TTL attribute `expiresAt`) and the Powertools idempotency table (`slotwise-dev-idempotency`, key `id`, TTL attribute `expiration`). `tenant_api.tf` holds the `tenant-api` Lambda with its least-privilege role, the `POST /tenants` route and the alarm for failed Cognito provisioning. The route is protected by a JWT authorizer (`api.tf`) that expects the Cognito **ID token** (only it carries the tenant and role claims). Run `npm run build` before `terraform plan` so both bundles exist. `catalog_api.tf` holds the `catalog-api` Lambda (its role can read, put, update and query the data table but not delete) and its four `/services` routes behind the same authorizer. Output `data_table_name` is used by the integration tests.
 
 The state key is `envs/dev/terraform.tfstate`. The stage throttles every route to 5 requests per second (burst 10).
 

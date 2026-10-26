@@ -7,7 +7,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
-- Acceptance criteria for US-03 (manage services) and the `/services` endpoints in `api/openapi.yaml` (draft, not implemented yet).
+- `catalog-api` Lambda with `POST /services`, `GET /services`, `GET /services/{serviceId}` and `PATCH /services/{serviceId}` (US-03), its Terraform and tests, including the first cross-tenant tests and the check that every route rejects a token without a tenant.
+- `currency` (default `TRY`) in the default tenant settings, `requireRole` and `serviceKey` in the shared package, and a shared `parseWith` validation helper.
+- Acceptance criteria for US-03 (manage services) and the `/services` endpoints in `api/openapi.yaml`.
 - README section "Before real users", with the move of the Cognito email to SES and the end of the AWS Free plan.
 - MIT `LICENSE`, with the license named in the README, `package.json` and `api/openapi.yaml`, and the accepted ADR-0008 with the reasons and the conditions for revisiting it.
 - Repository layout (`api/`, `backend/`, `frontend/`, `infra/`, `tests/`, `docs/`) with a README per component.
