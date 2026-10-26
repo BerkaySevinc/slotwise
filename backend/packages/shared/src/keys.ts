@@ -19,3 +19,10 @@ export const slugKey = (slug: string): ItemKey => ({ PK: `SLUG#${slug}`, SK: 'SL
 
 /** Maps a Cognito user id (`sub`) to its tenant. Like the slug item, it does not start with a tenant id. */
 export const ownerKey = (userId: string): ItemKey => ({ PK: `OWNER#${userId}`, SK: 'OWNER' });
+
+/** Services sit under their tenant (ADR-0002); list them with `SERVICE_SK_PREFIX`. */
+export const SERVICE_SK_PREFIX = 'SVC#';
+export const serviceKey = (tenantId: string, serviceId: string): ItemKey => ({
+  PK: `T#${tenantId}`,
+  SK: `${SERVICE_SK_PREFIX}${serviceId}`,
+});

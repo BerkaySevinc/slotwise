@@ -53,7 +53,24 @@ Written before implementation. The contract is in [`api/openapi.yaml`](../../api
 
 ## Verification status
 
-Not implemented yet.
+Checked on 2026-10-26 against the dev stack. "Unit" means fakes and a stubbed DynamoDB client; "integration" runs the handler and repository against the real dev table (`tests/integration/services.int.test.ts`, 5 tests); "end-to-end" is a manual run with a real Cognito user against the deployed API, 27 checks (the script was throwaway and is not in the repository). "Contract" checks the handler's responses against `api/openapi.yaml`.
+
+| Criteria | Verified by | Status |
+|---|---|---|
+| AC-03.1, 03.2 | Unit, contract; end-to-end: malformed JSON, a null body and a `tenantId` in the body return `400` | Verified |
+| AC-03.3, 03.4, 03.5 | Unit (every boundary, the 5-minute grid, the sum rule, price type and range); end-to-end: a price as text returns `400` | Verified |
+| AC-03.6 | Integration and end-to-end: `201`, stored fields, `active: true`, no tenant id in the response | Verified |
+| AC-03.7 | By design: no `Idempotency-Key` is read | Verified |
+| AC-03.8, 03.9 | Integration and end-to-end: pages of 2 over 3 services, the second page has no token, retired services are skipped without being counted, `includeInactive` returns all, a garbage token returns `400 invalid_page_token`, `limit=0` returns `400`. Integration: a token of tenant B is refused for tenant A | Verified |
+| AC-03.10 | Integration and end-to-end: an unknown id returns `404`; a retired service is still readable | Verified |
+| AC-03.11, 03.12 | Integration and end-to-end: a patch changes only the sent fields; duration plus buffer is checked on the merged values against the stored item; `active: false` and `true` retire and restore. Unit: the retry when a concurrent update changed the duration or buffer. The concurrent case was not provoked against DynamoDB | Verified, except the real race |
+| AC-03.13 | Integration and end-to-end: a patch of an unknown id returns `404` and the item is not created; the real `ReturnValuesOnConditionCheckFailure` tells "missing" from "stale" | Verified |
+| AC-03.14 | By design: appointments do not exist yet; the snapshot rule is tested with the booking stories | Open |
+| AC-03.15 | Unit: the default settings hold `TRY`. Not read back from a stored settings item | Partly verified |
+| AC-03.16 | Unit and contract: staff gets `403 forbidden` on `POST` and `PATCH` and may read. Not tried with a real staff token (no staff user exists yet) | Partly verified |
+| AC-03.17 | Unit, route-level test over all four routes; end-to-end: a real token without a tenant gets `403 tenant_required` on all four routes (this also closes the route-level part of AC-02.4 for this function) | Verified |
+| AC-03.18 | Unit, contract and integration: tenant B gets `404` for tenant A's service on `GET` and `PATCH`, tenant A's data is unchanged, and the list of tenant B does not contain it. Not tried with two real users | Verified |
+| AC-03.19 | Unit test of everything the application logs. The real logs were not read | Partly verified |
 
 ## Choices to confirm
 

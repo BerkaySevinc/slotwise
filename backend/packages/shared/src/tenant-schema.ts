@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { ErrorDetail } from './errors.js';
+import { parseWith, type ParseResult } from './validation.js';
 
 export const RESERVED_SLUGS: ReadonlySet<string> = new Set([
   'admin',
@@ -52,46 +52,7 @@ export const createTenantRequestSchema = z.strictObject({
 
 export type CreateTenantRequest = z.infer<typeof createTenantRequestSchema>;
 
-export type ParseResult<T> = { ok: true; value: T } | { ok: false; details: ErrorDetail[] };
-
-function issueCode(issue: z.core.$ZodIssue, body: unknown): string {
-  switch (issue.code) {
-    case 'custom':
-      return issue.message;
-    case 'invalid_type':
-      return valueAt(body, issue.path) === undefined ? 'required' : 'invalid_type';
-    case 'too_small':
-      return 'too_short';
-    case 'too_big':
-      return 'too_long';
-    case 'invalid_format':
-      return 'invalid_format';
-    default:
-      return 'invalid';
-  }
-}
-
-function valueAt(body: unknown, path: PropertyKey[]): unknown {
-  let current = body;
-  for (const key of path) {
-    if (typeof current !== 'object' || current === null) return undefined;
-    current = (current as Record<PropertyKey, unknown>)[key];
-  }
-  return current;
-}
-
 /** Validates an already JSON-parsed body. Anything that is not an object (null, array, ...) fails. */
 export function parseCreateTenantRequest(body: unknown): ParseResult<CreateTenantRequest> {
-  const result = createTenantRequestSchema.safeParse(body);
-  if (result.success) return { ok: true, value: result.data };
-
-  const details: ErrorDetail[] = [];
-  for (const issue of result.error.issues) {
-    if (issue.code === 'unrecognized_keys') {
-      for (const key of issue.keys) details.push({ field: key, issue: 'unrecognized' });
-    } else {
-      details.push({ field: issue.path.join('.') || 'body', issue: issueCode(issue, body) });
-    }
-  }
-  return { ok: false, details };
+  return parseWith(createTenantRequestSchema, body);
 }

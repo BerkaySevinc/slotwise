@@ -40,3 +40,10 @@ export function requireTenant(caller: Caller): TenantCaller {
   }
   return { ...caller, tenantId: caller.tenantId, role: caller.role };
 }
+
+/** Role check for endpoints that only some roles may call. The role comes from the verified token. */
+export function requireRole(caller: TenantCaller, ...allowed: Role[]): void {
+  if (!allowed.includes(caller.role)) {
+    throw new ApiError(403, 'forbidden', 'Your role may not do this.');
+  }
+}

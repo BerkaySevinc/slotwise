@@ -19,7 +19,7 @@ Written before implementation. Design background is in [ADR-0007](../adr/0007-ow
 
 - **AC-01.7** On success the call returns `201` with the tenant: a new ULID `id`, `status: active`, and the stored `name`, `slug`, `timeZone`, `createdAt`.
 - **AC-01.8** One DynamoDB transaction writes the tenant profile (`provisioning`), the default settings, the slug item and the owner lookup item. If any condition fails, none of them exist afterwards.
-- **AC-01.9** Default settings follow the specification: slot granularity 15 minutes, minimum lead time 2 hours, booking window 60 days, cancellation cutoff 24 hours.
+- **AC-01.9** Default settings follow the specification: slot granularity 15 minutes, minimum lead time 2 hours, booking window 60 days, cancellation cutoff 24 hours, currency `TRY` (added by [US-03](US-03-manage-services.md)).
 - **AC-01.10** After the transaction the owner's Cognito user gets `custom:tenant_id` (the new id) and `custom:role = owner`, then the tenant becomes `active`. The user id comes from the verified token only.
 
 ### Slug uniqueness

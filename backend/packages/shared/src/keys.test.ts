@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ownerKey, slugKey, tenantProfileKey, tenantSettingsKey } from './keys.js';
+import { ownerKey, serviceKey, slugKey, tenantProfileKey, tenantSettingsKey } from './keys.js';
 
 describe('key builders', () => {
   it('builds tenant keys from the tenant id', () => {
@@ -9,5 +9,8 @@ describe('key builders', () => {
   it('builds the slug and owner lookup keys', () => {
     expect(slugKey('ahmet')).toEqual({ PK: 'SLUG#ahmet', SK: 'SLUG' });
     expect(ownerKey('sub-1')).toEqual({ PK: 'OWNER#sub-1', SK: 'OWNER' });
+  });
+  it('puts a service under its tenant', () => {
+    expect(serviceKey('01ABC', '01SVC')).toEqual({ PK: 'T#01ABC', SK: 'SVC#01SVC' });
   });
 });

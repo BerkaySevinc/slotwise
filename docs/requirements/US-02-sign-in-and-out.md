@@ -29,7 +29,7 @@ Checked on 2026-10-22 with a real user against the dev user pool and the deploye
 | AC-02.1 | Sign-in before the code is entered fails with `UserNotConfirmedException` | Verified |
 | AC-02.2 | `api/openapi.yaml` has no login or registration endpoint | Verified |
 | AC-02.3 | No token and a malformed token return `401`; the API accepts a valid ID token. Expired and wrongly signed tokens were not tried | Partly verified |
-| AC-02.4 | `requireTenant` is unit-tested. The test that runs against every authenticated route needs a second authenticated endpoint | Open |
+| AC-02.4 | `requireTenant` is unit-tested. With the `catalog-api` routes (US-03) a test runs over every route of that function, and on 2026-10-26 a real token without a tenant got `403 tenant_required` on all four `/services` routes. `POST /tenants` is the one route that accepts it | Verified |
 | AC-02.5 | The app client's attempts to write `custom:tenant_id` and `custom:role` are refused (`NotAuthorizedException`); the backend writes them | Verified |
 | AC-02.6 | ID and access tokens last 3600 seconds; after a global sign-out the refresh token is refused. The 30 day refresh lifetime was read from the configuration, not waited for | Verified, except the refresh lifetime |
 | AC-02.7 | A second sign-up for an unconfirmed email is rejected (`UsernameExistsException`); the first password and the first code still worked afterwards. This confirms the assumption in ADR-0007 | Verified |
