@@ -17,13 +17,16 @@ const record = (n: number, active = true): ServiceRecord => ({
   bufferMinutes: 0,
   priceMinor: 100,
   active,
+  staffIds: [],
   createdAt: '2026-10-23T10:00:00.000Z',
 });
-const item = (s: ServiceRecord) => ({
+/** What DynamoDB returns: the staff ids are a set, left out when empty. */
+const item = ({ staffIds, ...s }: ServiceRecord) => ({
   PK: `T#${TENANT}`,
   SK: `SVC#${s.id}`,
   entity: 'SERVICE',
   ...s,
+  ...(staffIds.length > 0 && { staffIds: new Set(staffIds) }),
 });
 
 /** Answers each command from a queue and keeps what was sent. */
@@ -60,6 +63,53 @@ describe('create', () => {
   });
 });
 
+describe('staff ids', () => {
+  it('writes them as a set, and leaves the attribute out when there are none', async () => {
+    const withStaff = repoWith([{}]);
+    await withStaff.repo.create(TENANT, { ...record(1), staffIds: ['B', 'A'] });
+    expect((withStaff.sent[0] as PutCommand).input.Item?.['staffIds']).toEqual(new Set(['A', 'B']));
+
+    const without = repoWith([{}]);
+    await without.repo.create(TENANT, record(1));
+    expect(without.sent[0] as PutCommand).toBeDefined();
+    expect((without.sent[0] as PutCommand).input.Item).not.toHaveProperty('staffIds');
+  });
+
+  it('reads the set as a sorted array, and a missing attribute as none', async () => {
+    const { repo } = repoWith([
+      { Item: { ...item(record(1)), staffIds: new Set(['B', 'A']) } },
+      { Item: item(record(2)) },
+    ]);
+    expect((await repo.get(TENANT, record(1).id))?.staffIds).toEqual(['A', 'B']);
+    expect((await repo.get(TENANT, record(2).id))?.staffIds).toEqual([]);
+  });
+
+  it('replaces the set in an update', async () => {
+    const { repo, sent } = repoWith([{ Attributes: item(record(1)) }]);
+    await repo.update(TENANT, record(1).id, { staffIds: ['A', 'B'] });
+    expect((sent[0] as UpdateCommand).input).toMatchObject({
+      UpdateExpression: 'SET #staffIds = :staffIds',
+      ExpressionAttributeValues: { ':staffIds': new Set(['A', 'B']) },
+    });
+  });
+
+  it('removes the attribute to empty the set, without an empty value map', async () => {
+    const { repo, sent } = repoWith([{ Attributes: item(record(1)) }]);
+    await repo.update(TENANT, record(1).id, { staffIds: [] });
+    const input = (sent[0] as UpdateCommand).input;
+    expect(input.UpdateExpression).toBe('REMOVE #staffIds');
+    expect(input.ExpressionAttributeValues).toBeUndefined();
+  });
+
+  it('can set other fields and empty the set in one update', async () => {
+    const { repo, sent } = repoWith([{ Attributes: item(record(1)) }]);
+    await repo.update(TENANT, record(1).id, { name: 'New', staffIds: [] });
+    expect((sent[0] as UpdateCommand).input.UpdateExpression).toBe(
+      'SET #name = :name REMOVE #staffIds',
+    );
+  });
+});
+
 describe('list', () => {
   it('queries only the tenant’s SVC# items, with a consistent read', async () => {
     const { repo, sent } = repoWith([{ Items: [item(record(1))] }]);
@@ -88,8 +138,15 @@ describe('list', () => {
     ]);
     const page = await repo.list(TENANT, { limit: 2, includeInactive: false });
     expect(page.items.map((s) => s.name)).toEqual(['S3', 'S5']);
+    // S6 exists after the page, so there is a next page that starts after S5.
     expect(page.lastId).toBe(record(5).id);
     expect(sent).toHaveLength(3);
+  });
+
+  it('reads one item more than the limit to know whether a next page exists', async () => {
+    const { repo, sent } = repoWith([{ Items: [item(record(1))] }]);
+    await repo.list(TENANT, { limit: 10, includeInactive: false });
+    expect((sent[0] as QueryCommand).input.Limit).toBe(11);
   });
 
   it('reports no next page when the last service fills the page and nothing follows', async () => {
@@ -99,11 +156,26 @@ describe('list', () => {
     });
   });
 
-  it('reports a next page when DynamoDB says more exist', async () => {
-    const { repo } = repoWith([{ Items: [item(record(1))], LastEvaluatedKey: { SK: 'a' } }]);
-    expect((await repo.list(TENANT, { limit: 1, includeInactive: true })).lastId).toBe(
-      record(1).id,
-    );
+  it('gives no token to an empty page even when DynamoDB still returns a LastEvaluatedKey', async () => {
+    const { repo } = repoWith([
+      { Items: [item(record(1)), item(record(2))], LastEvaluatedKey: { SK: 'a' } },
+      { Items: [] },
+    ]);
+    const page = await repo.list(TENANT, { limit: 2, includeInactive: false });
+    expect(page).toEqual({ items: [record(1), record(2)] });
+  });
+
+  it('reports a next page only when a further service really exists', async () => {
+    const { repo } = repoWith([{ Items: [item(record(1)), item(record(2))] }]);
+    const page = await repo.list(TENANT, { limit: 1, includeInactive: true });
+    expect(page.items).toEqual([record(1)]);
+    expect(page.lastId).toBe(record(1).id);
+  });
+
+  it('does not count a retired service as a further one', async () => {
+    const { repo } = repoWith([{ Items: [item(record(1)), item(record(2, false))] }]);
+    const page = await repo.list(TENANT, { limit: 1, includeInactive: false });
+    expect(page).toEqual({ items: [record(1)] });
   });
 
   it('returns retired services when asked', async () => {

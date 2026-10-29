@@ -2,11 +2,11 @@ import { ConditionalCheckFailedException } from '@aws-sdk/client-dynamodb';
 import {
   GetCommand,
   PutCommand,
-  QueryCommand,
   UpdateCommand,
   type DynamoDBDocumentClient,
 } from '@aws-sdk/lib-dynamodb';
 import { SERVICE_SK_PREFIX, serviceKey } from '@slotwise/shared';
+import { listByPrefix, type ListOptions } from '../http/dynamo-list.js';
 import {
   ServiceMissingError,
   StaleServiceError,
@@ -16,6 +16,8 @@ import {
 } from './services.js';
 
 function toRecord(item: Record<string, unknown>): ServiceRecord {
+  // DynamoDB keeps the staff ids as a string set, which cannot be empty: no attribute means none.
+  const staffIds = item['staffIds'] as Set<string> | undefined;
   return {
     id: item['id'] as string,
     name: item['name'] as string,
@@ -23,6 +25,7 @@ function toRecord(item: Record<string, unknown>): ServiceRecord {
     bufferMinutes: item['bufferMinutes'] as number,
     priceMinor: item['priceMinor'] as number,
     active: item['active'] as boolean,
+    staffIds: [...(staffIds ?? [])].sort(),
     createdAt: item['createdAt'] as string,
   };
 }
@@ -34,10 +37,16 @@ export class DynamoServiceRepository implements ServiceRepository {
   ) {}
 
   async create(tenantId: string, service: ServiceRecord): Promise<void> {
+    const { staffIds, ...rest } = service;
     await this.db.send(
       new PutCommand({
         TableName: this.tableName,
-        Item: { ...serviceKey(tenantId, service.id), entity: 'SERVICE', ...service },
+        Item: {
+          ...serviceKey(tenantId, service.id),
+          entity: 'SERVICE',
+          ...rest,
+          ...(staffIds.length > 0 && { staffIds: new Set(staffIds) }),
+        },
         ConditionExpression: 'attribute_not_exists(PK)',
       }),
     );
@@ -54,42 +63,19 @@ export class DynamoServiceRepository implements ServiceRepository {
     return out.Item === undefined ? undefined : toRecord(out.Item);
   }
 
-  async list(
+  list(
     tenantId: string,
-    options: { limit: number; includeInactive: boolean; startAfterId?: string },
+    options: ListOptions,
   ): Promise<{ items: ServiceRecord[]; lastId?: string }> {
-    const items: ServiceRecord[] = [];
-    let startKey: Record<string, unknown> | undefined =
-      options.startAfterId === undefined
-        ? undefined
-        : { ...serviceKey(tenantId, options.startAfterId) };
-
-    // Retired services are filtered here, not by DynamoDB, so `limit` counts returned services.
-    // The loop is bounded by the number of services of one tenant, which is small by design.
-    for (;;) {
-      const out = await this.db.send(
-        new QueryCommand({
-          TableName: this.tableName,
-          KeyConditionExpression: 'PK = :pk AND begins_with(SK, :prefix)',
-          ExpressionAttributeValues: { ':pk': `T#${tenantId}`, ':prefix': SERVICE_SK_PREFIX },
-          ExclusiveStartKey: startKey,
-          Limit: options.limit,
-          ConsistentRead: true,
-        }),
-      );
-      const page = out.Items ?? [];
-      for (const [index, item] of page.entries()) {
-        const record = toRecord(item);
-        if (!options.includeInactive && !record.active) continue;
-        items.push(record);
-        if (items.length === options.limit) {
-          const more = index < page.length - 1 || out.LastEvaluatedKey !== undefined;
-          return more ? { items, lastId: record.id } : { items };
-        }
-      }
-      if (out.LastEvaluatedKey === undefined) return { items };
-      startKey = out.LastEvaluatedKey;
-    }
+    return listByPrefix(
+      this.db,
+      this.tableName,
+      tenantId,
+      SERVICE_SK_PREFIX,
+      (id) => serviceKey(tenantId, id),
+      toRecord,
+      options,
+    );
   }
 
   async update(
@@ -102,9 +88,14 @@ export class DynamoServiceRepository implements ServiceRepository {
     const names: Record<string, string> = {};
     const values: Record<string, unknown> = {};
     const sets: string[] = [];
+    const removes: string[] = [];
     for (const [field, value] of Object.entries(changes)) {
       names[`#${field}`] = field;
-      values[`:${field}`] = value;
+      if (field === 'staffIds' && (value as string[]).length === 0) {
+        removes.push(`#${field}`);
+        continue;
+      }
+      values[`:${field}`] = field === 'staffIds' ? new Set(value as string[]) : value;
       sets.push(`#${field} = :${field}`);
     }
 
@@ -117,15 +108,23 @@ export class DynamoServiceRepository implements ServiceRepository {
       condition += ' AND #durationMinutes = :guardDuration AND #bufferMinutes = :guardBuffer';
     }
 
+    const expression = [
+      sets.length > 0 ? `SET ${sets.join(', ')}` : '',
+      removes.length > 0 ? `REMOVE ${removes.join(', ')}` : '',
+    ]
+      .filter((part) => part !== '')
+      .join(' ');
+
     try {
       const out = await this.db.send(
         new UpdateCommand({
           TableName: this.tableName,
           Key: serviceKey(tenantId, serviceId),
-          UpdateExpression: `SET ${sets.join(', ')}`,
+          UpdateExpression: expression,
           ConditionExpression: condition,
           ExpressionAttributeNames: names,
-          ExpressionAttributeValues: values,
+          // DynamoDB rejects an empty map.
+          ...(Object.keys(values).length > 0 && { ExpressionAttributeValues: values }),
           ReturnValues: 'ALL_NEW',
           // Lets the repository tell "missing" from "stale" without a second read when it can.
           ReturnValuesOnConditionCheckFailure: 'ALL_OLD',

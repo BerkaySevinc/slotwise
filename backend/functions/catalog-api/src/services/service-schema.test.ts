@@ -1,9 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  parseCreateServiceRequest,
-  parseListServicesQuery,
-  parseUpdateServiceRequest,
-} from './service-schema.js';
+import { parseCreateServiceRequest, parseUpdateServiceRequest } from './service-schema.js';
 
 const good = { name: 'Haircut', durationMinutes: 30, priceMinor: 25050 };
 
@@ -11,10 +7,10 @@ const issues = (result: { ok: boolean; details?: { field: string; issue: string 
   result.ok ? [] : (result.details ?? []).map((d) => `${d.field}:${d.issue}`);
 
 describe('create service request', () => {
-  it('accepts a minimal body and defaults the buffer to 0', () => {
+  it('accepts a minimal body and defaults the buffer to 0 and the staff to none', () => {
     expect(parseCreateServiceRequest(good)).toEqual({
       ok: true,
-      value: { ...good, bufferMinutes: 0 },
+      value: { ...good, bufferMinutes: 0, staffIds: [] },
     });
   });
 
@@ -99,32 +95,28 @@ describe('update service request', () => {
   });
 });
 
-describe('list query', () => {
-  it('defaults to 50 active services', () => {
-    expect(parseListServicesQuery(undefined)).toEqual({
+describe('staffIds', () => {
+  it('accepts up to 50 distinct ids on create and update', () => {
+    const ids = Array.from({ length: 50 }, (_, i) => `staff-${String(i)}`);
+    expect(parseCreateServiceRequest({ ...good, staffIds: ids }).ok).toBe(true);
+    expect(parseUpdateServiceRequest({ staffIds: ids }).ok).toBe(true);
+  });
+
+  it('accepts an empty array to empty the set', () => {
+    expect(parseUpdateServiceRequest({ staffIds: [] })).toEqual({
       ok: true,
-      value: { includeInactive: false, limit: 50 },
+      value: { staffIds: [] },
     });
   });
 
-  it('reads the parameters and ignores unknown ones', () => {
-    expect(
-      parseListServicesQuery({
-        includeInactive: 'true',
-        limit: '100',
-        nextToken: 'abc',
-        other: 'x',
-      }),
-    ).toEqual({ ok: true, value: { includeInactive: true, limit: 100, nextToken: 'abc' } });
-  });
-
   it.each([
-    [{ limit: '0' }, 'limit:too_small'],
-    [{ limit: '101' }, 'limit:too_large'],
-    [{ limit: 'ten' }, 'limit:invalid_format'],
-    [{ limit: '1.5' }, 'limit:invalid_format'],
-    [{ includeInactive: 'yes' }, 'includeInactive:invalid'],
-  ])('rejects %j', (query, expected) => {
-    expect(issues(parseListServicesQuery(query))).toContain(expected);
+    [{ staffIds: Array.from({ length: 51 }, (_, i) => `s${String(i)}`) }, 'staffIds:too_large'],
+    [{ staffIds: ['a', 'a'] }, 'staffIds:duplicate_ids'],
+    [{ staffIds: 'a' }, 'staffIds:invalid_type'],
+    [{ staffIds: [5] }, 'staffIds.0:invalid_type'],
+    [{ staffIds: [''] }, 'staffIds.0:too_short'],
+  ])('rejects %j', (extra, expected) => {
+    expect(issues(parseCreateServiceRequest({ ...good, ...extra }))).toContain(expected);
+    expect(issues(parseUpdateServiceRequest(extra))).toContain(expected);
   });
 });

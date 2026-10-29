@@ -1,11 +1,24 @@
 import { describe, expect, it } from 'vitest';
 import { ServiceMissingError, StaleServiceError } from './services.js';
-import { createService, getService, listServices, updateService } from './services.js';
-import { makeDeps } from './testing.js';
+import {
+  StaffLookupBusyError,
+  createService,
+  getService,
+  listServices,
+  updateService,
+} from './services.js';
+import { createStaff, updateStaff } from '../staff/staff.js';
+import { makeCatalog, makeDeps } from '../testing.js';
 
 const A = '01JAAAAAAAAAAAAAAAAAAAAAAA';
 const B = '01JBBBBBBBBBBBBBBBBBBBBBBB';
-const input = { name: 'Haircut', durationMinutes: 30, bufferMinutes: 10, priceMinor: 25050 };
+const input = {
+  name: 'Haircut',
+  durationMinutes: 30,
+  bufferMinutes: 10,
+  priceMinor: 25050,
+  staffIds: [] as string[],
+};
 const query = { includeInactive: false, limit: 50 };
 
 const code = async (p: Promise<unknown>) =>
@@ -159,5 +172,91 @@ describe('updateService', () => {
     const s = await createService(deps, A, input);
     deps.repository.update = () => Promise.reject(new ServiceMissingError());
     expect(await code(updateService(deps, A, s.id, { name: 'x' }))).toBe('not_found');
+  });
+});
+
+describe('staffIds (US-04)', () => {
+  async function withStaff() {
+    const catalog = makeCatalog();
+    const mine = await createStaff(catalog.staff, A, { name: 'Ahmet' });
+    const retired = await createStaff(catalog.staff, A, { name: 'Left' });
+    await updateStaff(catalog.staff, A, retired.id, { active: false });
+    const foreign = await createStaff(catalog.staff, B, { name: 'Other tenant' });
+    return { ...catalog, mine, retired, foreign };
+  }
+
+  it('stores the staff of a new service, sorted', async () => {
+    const { services, mine, retired } = await withStaff();
+    const s = await createService(services, A, { ...input, staffIds: [retired.id, mine.id] });
+    expect(s.staffIds).toEqual([mine.id, retired.id].sort());
+    expect((await getService(services, A, s.id)).staffIds).toEqual(s.staffIds);
+  });
+
+  it('accepts a retired staff member (AC-04.15)', async () => {
+    const { services, retired } = await withStaff();
+    const s = await createService(services, A, { ...input, staffIds: [retired.id] });
+    expect(s.staffIds).toEqual([retired.id]);
+  });
+
+  it.each([
+    ['an unknown id', () => 'nope'],
+    ['a staff member of another tenant', (c: { foreign: { id: string } }) => c.foreign.id],
+  ])('refuses %s on create with the same answer', async (_name, pick) => {
+    const catalog = await withStaff();
+    const id = pick(catalog);
+    await expect(
+      createService(catalog.services, A, { ...input, staffIds: [catalog.mine.id, id] }),
+    ).rejects.toMatchObject({
+      statusCode: 400,
+      code: 'validation_failed',
+      details: [{ field: 'staffIds', issue: 'unknown_staff' }],
+    });
+    expect((await listServices(catalog.services, A, query)).items).toEqual([]);
+  });
+
+  it('refuses another tenant’s staff on update and changes nothing', async () => {
+    const { services, mine, foreign } = await withStaff();
+    const s = await createService(services, A, { ...input, staffIds: [mine.id] });
+    await expect(
+      updateService(services, A, s.id, { staffIds: [foreign.id] }),
+    ).rejects.toMatchObject({
+      statusCode: 400,
+    });
+    expect((await getService(services, A, s.id)).staffIds).toEqual([mine.id]);
+  });
+
+  it('replaces the whole set, empties it, and leaves it alone when absent (AC-04.16)', async () => {
+    const { services, mine, retired } = await withStaff();
+    const s = await createService(services, A, { ...input, staffIds: [mine.id] });
+    expect((await updateService(services, A, s.id, { staffIds: [retired.id] })).staffIds).toEqual([
+      retired.id,
+    ]);
+    expect((await updateService(services, A, s.id, { name: 'Renamed' })).staffIds).toEqual([
+      retired.id,
+    ]);
+    expect((await updateService(services, A, s.id, { staffIds: [] })).staffIds).toEqual([]);
+  });
+
+  it('skips the staff lookup when there are no ids', async () => {
+    const { services } = await withStaff();
+    let asked = 0;
+    services.staff = {
+      existingIds: () => {
+        asked++;
+        return Promise.resolve(new Set<string>());
+      },
+    };
+    await createService(services, A, input);
+    expect(asked).toBe(0);
+  });
+
+  it('answers 503 try_again, not 500, when the staff lookup is too busy', async () => {
+    const { services, mine } = await withStaff();
+    services.staff = { existingIds: () => Promise.reject(new StaffLookupBusyError('busy')) };
+    expect(await code(createService(services, A, { ...input, staffIds: [mine.id] }))).toBe(
+      'try_again',
+    );
+    const s = await createService({ ...services, staff: services.staff }, A, input);
+    expect(await code(updateService(services, A, s.id, { staffIds: [mine.id] }))).toBe('try_again');
   });
 });

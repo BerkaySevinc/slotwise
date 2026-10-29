@@ -8,13 +8,13 @@ import {
   staffOf,
 } from '../../../../tests/helpers/api-event.js';
 import { buildHandler } from './app.js';
-import { makeDeps } from './testing.js';
+import { makeCatalog } from './testing.js';
 
 const good = { name: 'Haircut', durationMinutes: 30, bufferMinutes: 10, priceMinor: 25050 };
 
 function setup() {
-  const deps = makeDeps();
-  return { deps, app: buildHandler(deps) };
+  const deps = makeCatalog();
+  return { deps, app: buildHandler(deps.app) };
 }
 
 type Handler = ReturnType<typeof buildHandler>;
@@ -43,16 +43,18 @@ describe('every authenticated route (AC-02.4, AC-03.17)', () => {
 });
 
 describe('roles (AC-03.16)', () => {
-  it.each(['POST /services', 'PATCH /services/{serviceId}'])(
-    'staff may not call %s',
-    async (routeKey) => {
-      const { app } = setup();
-      const route = CATALOG_ROUTES.find((r) => r.routeKey === routeKey);
-      const res = await app(apiEvent({ ...route, routeKey, caller: staffOf(TENANT_A) }));
-      expect(res.statusCode).toBe(403);
-      expect(parse(res)['code']).toBe('forbidden');
-    },
-  );
+  it.each([
+    'POST /services',
+    'PATCH /services/{serviceId}',
+    'POST /staff',
+    'PATCH /staff/{staffId}',
+  ])('staff may not call %s', async (routeKey) => {
+    const { app } = setup();
+    const route = CATALOG_ROUTES.find((r) => r.routeKey === routeKey);
+    const res = await app(apiEvent({ ...route, routeKey, caller: staffOf(TENANT_A) }));
+    expect(res.statusCode).toBe(403);
+    expect(parse(res)['code']).toBe('forbidden');
+  });
 
   it('staff may read the list and a single service', async () => {
     const { app } = setup();
@@ -81,6 +83,7 @@ describe('POST /services', () => {
       ...good,
       id: expect.any(String) as string,
       active: true,
+      staffIds: [],
       createdAt: '2026-10-23T10:00:00.000Z',
     });
   });
@@ -109,17 +112,17 @@ describe('POST /services', () => {
   it('ignores a tenant id sent in the body by rejecting it, and uses the token', async () => {
     const { app, deps } = setup();
     await createAs(app, TENANT_A);
-    expect(deps.repository.services.get(TENANT_A)?.size).toBe(1);
-    expect(deps.repository.services.get(TENANT_B)).toBeUndefined();
+    expect(deps.serviceRepository.services.get(TENANT_A)?.size).toBe(1);
+    expect(deps.serviceRepository.services.get(TENANT_B)).toBeUndefined();
   });
 
   it('answers 500 and logs only the error name for an unexpected failure', async () => {
     const lines: string[] = [];
-    const deps = makeDeps({
+    const deps = makeCatalog({
       logger: { info: () => undefined, error: (m, e) => lines.push(JSON.stringify({ m, e })) },
     });
-    deps.repository.create = () => Promise.reject(new Error('secret detail'));
-    const res = await buildHandler(deps)(
+    deps.serviceRepository.create = () => Promise.reject(new Error('secret detail'));
+    const res = await buildHandler(deps.app)(
       apiEvent({ routeKey: 'POST /services', caller: ownerOf(TENANT_A), body: good }),
     );
     expect(res.statusCode).toBe(500);

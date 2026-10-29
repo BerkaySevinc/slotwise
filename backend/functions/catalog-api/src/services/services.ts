@@ -1,10 +1,10 @@
 import { ApiError } from '@slotwise/shared';
-import { decodePageToken, encodePageToken } from './page-token.js';
+import { decodePageToken, encodePageToken } from '../http/page-token.js';
+import type { ListQuery } from '../http/list-query.js';
 import {
   DURATION_PLUS_BUFFER_ISSUE,
   MAX_DURATION_PLUS_BUFFER_MINUTES,
   type CreateServiceRequest,
-  type ListServicesQuery,
   type UpdateServiceRequest,
 } from './service-schema.js';
 
@@ -15,6 +15,8 @@ export interface ServiceRecord {
   bufferMinutes: number;
   priceMinor: number;
   active: boolean;
+  /** Staff members who perform the service, retired ones included (US-04). Sorted. */
+  staffIds: string[];
   createdAt: string;
 }
 
@@ -45,6 +47,14 @@ export interface ServiceRepository {
   ): Promise<ServiceRecord>;
 }
 
+/** Thrown by a staff lookup when the database kept leaving keys unprocessed (it is too busy). */
+export class StaffLookupBusyError extends Error {}
+
+/** What the services need to know about staff: which of these ids are staff of this tenant. */
+export interface StaffLookup {
+  existingIds(tenantId: string, staffIds: string[]): Promise<Set<string>>;
+}
+
 export interface Logger {
   info(message: string, extra?: Record<string, unknown>): void;
   error(message: string, extra?: Record<string, unknown>): void;
@@ -52,6 +62,7 @@ export interface Logger {
 
 export interface ServiceDeps {
   repository: ServiceRepository;
+  staff: StaffLookup;
   newId: () => string;
   now: () => Date;
   logger: Logger;
@@ -61,14 +72,39 @@ const MAX_UPDATE_ATTEMPTS = 3;
 
 const notFound = (): ApiError => new ApiError(404, 'not_found', 'Not found.');
 
+/** AC-04.15: every id must be a staff member of the caller's tenant; the answer never says why not. */
+async function requireKnownStaff(
+  deps: ServiceDeps,
+  tenantId: string,
+  staffIds: string[],
+): Promise<void> {
+  if (staffIds.length === 0) return;
+  let known: Set<string>;
+  try {
+    known = await deps.staff.existingIds(tenantId, staffIds);
+  } catch (e) {
+    if (e instanceof StaffLookupBusyError) {
+      throw new ApiError(503, 'try_again', 'The service is busy. Try again.');
+    }
+    throw e;
+  }
+  if (staffIds.some((id) => !known.has(id))) {
+    throw new ApiError(400, 'validation_failed', 'The request is not valid.', [
+      { field: 'staffIds', issue: 'unknown_staff' },
+    ]);
+  }
+}
+
 export async function createService(
   deps: ServiceDeps,
   tenantId: string,
   input: CreateServiceRequest,
 ): Promise<ServiceRecord> {
+  await requireKnownStaff(deps, tenantId, input.staffIds);
   const service: ServiceRecord = {
     id: deps.newId(),
     ...input,
+    staffIds: [...input.staffIds].sort(),
     active: true,
     createdAt: deps.now().toISOString(),
   };
@@ -80,7 +116,7 @@ export async function createService(
 export async function listServices(
   deps: ServiceDeps,
   tenantId: string,
-  query: ListServicesQuery,
+  query: ListQuery,
 ): Promise<{ items: ServiceRecord[]; nextToken?: string }> {
   const startAfterId =
     query.nextToken === undefined ? undefined : decodePageToken(query.nextToken, tenantId);
@@ -118,6 +154,10 @@ export async function updateService(
   if (request.bufferMinutes !== undefined) changes.bufferMinutes = request.bufferMinutes;
   if (request.priceMinor !== undefined) changes.priceMinor = request.priceMinor;
   if (request.active !== undefined) changes.active = request.active;
+  if (request.staffIds !== undefined) {
+    await requireKnownStaff(deps, tenantId, request.staffIds);
+    changes.staffIds = [...request.staffIds].sort();
+  }
 
   const touchesSum = changes.durationMinutes !== undefined || changes.bufferMinutes !== undefined;
 

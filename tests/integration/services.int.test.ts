@@ -12,9 +12,8 @@ import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { BatchWriteCommand, DynamoDBDocumentClient, QueryCommand } from '@aws-sdk/lib-dynamodb';
 import { afterAll, describe, expect, it } from 'vitest';
 import { ulid } from 'ulid';
-import { buildHandler } from '../../backend/functions/catalog-api/src/app.js';
-import { DynamoServiceRepository } from '../../backend/functions/catalog-api/src/dynamo-service-repository.js';
 import { apiEvent, ownerOf, staffOf } from '../helpers/api-event.js';
+import { realCatalogApp } from '../helpers/real-catalog-app.js';
 
 const tableName = process.env['SLOTWISE_DATA_TABLE'];
 
@@ -26,12 +25,7 @@ describe.skipIf(tableName === undefined)('services against DynamoDB', () => {
   const db = DynamoDBDocumentClient.from(new DynamoDBClient({}));
   const table = tableName ?? '';
   const run = randomBytes(2).toString('hex');
-  const app = buildHandler({
-    repository: new DynamoServiceRepository(db, table),
-    newId: ulid,
-    now: () => new Date(),
-    logger: { info: () => undefined, error: () => undefined },
-  });
+  const app = realCatalogApp(db, table);
 
   type Res = { statusCode?: number | undefined; body?: string | undefined };
   const json = (r: Res) => JSON.parse(r.body ?? 'null') as Record<string, unknown>;
