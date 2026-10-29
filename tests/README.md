@@ -1,6 +1,6 @@
 # Tests
 
-Cross-component tests: contract, concurrency, cross-tenant, smoke, regression and end-to-end. Unit tests live next to the code in `backend/` and `frontend/`. **Status:** `integration/` covers US-01 (`tenant-registration`) and US-03 (`services`) against a real DynamoDB table; `contract/` checks the handlers against the OpenAPI file; `helpers/` builds API Gateway events for the tests.
+Cross-component tests: contract, concurrency, cross-tenant, smoke, regression and end-to-end. Unit tests live next to the code in `backend/` and `frontend/`. **Status:** `integration/` covers US-01 (`tenant-registration`) and US-03 (`services`) and US-04 (`staff`) against a real DynamoDB table; `contract/` checks the handlers against the OpenAPI file; `helpers/` builds API Gateway events for the tests.
 
 ## Running the integration tests
 
