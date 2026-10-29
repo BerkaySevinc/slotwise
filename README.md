@@ -2,7 +2,7 @@
 
 A multi-tenant online booking platform for small appointment-based businesses (barbers, hair salons, clinics, dietitians). Design goals: each business gets a branded public booking page and a dashboard, customers book a slot without creating an account, and a slot is never double-booked, even under concurrent requests.
 
-> **Status:** Phase 0 (foundation). The tooling, CI, Terraform state backend, the Cognito user pool and the `tenant-api` Lambda (`POST /tenants`) and the `catalog-api` Lambda (services) behind an HTTP API are in place. The booking features are not started.
+> **Status:** Phase 0 (foundation). The tooling, CI, Terraform state backend, the Cognito user pool and the `tenant-api` Lambda (`POST /tenants`) and the `catalog-api` Lambda (services and staff) behind an HTTP API are in place. The booking features are not started.
 
 ## Planned stack
 

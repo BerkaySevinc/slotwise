@@ -50,7 +50,7 @@ export const staffOf = (tenantId: string): TestCaller => ({
   role: 'staff',
 });
 
-/** Every route the catalog API serves, with the path parameters it needs. */
+/** Every route the catalog API serves, with the path parameters it needs: services, then staff. */
 export const CATALOG_ROUTES: {
   routeKey: string;
   pathParameters?: Record<string, string>;
@@ -65,6 +65,17 @@ export const CATALOG_ROUTES: {
   {
     routeKey: 'PATCH /services/{serviceId}',
     pathParameters: { serviceId: '01JSVCSVCSVCSVCSVCSVCSVCSV' },
+    body: { active: false },
+  },
+  { routeKey: 'POST /staff', body: { name: 'x' } },
+  { routeKey: 'GET /staff' },
+  {
+    routeKey: 'GET /staff/{staffId}',
+    pathParameters: { staffId: '01JSTFSTFSTFSTFSTFSTFSTFST' },
+  },
+  {
+    routeKey: 'PATCH /staff/{staffId}',
+    pathParameters: { staffId: '01JSTFSTFSTFSTFSTFSTFSTFST' },
     body: { active: false },
   },
 ];

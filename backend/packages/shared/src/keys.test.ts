@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { ownerKey, serviceKey, slugKey, tenantProfileKey, tenantSettingsKey } from './keys.js';
+import {
+  ownerKey,
+  serviceKey,
+  slugKey,
+  staffKey,
+  tenantProfileKey,
+  tenantSettingsKey,
+} from './keys.js';
 
 describe('key builders', () => {
   it('builds tenant keys from the tenant id', () => {
@@ -12,5 +19,8 @@ describe('key builders', () => {
   });
   it('puts a service under its tenant', () => {
     expect(serviceKey('01ABC', '01SVC')).toEqual({ PK: 'T#01ABC', SK: 'SVC#01SVC' });
+  });
+  it('puts a staff member under their tenant', () => {
+    expect(staffKey('01ABC', '01STF')).toEqual({ PK: 'T#01ABC', SK: 'STAFF#01STF' });
   });
 });

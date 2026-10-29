@@ -7,6 +7,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- `POST /staff`, `GET /staff`, `GET /staff/{staffId}` and `PATCH /staff/{staffId}` in `catalog-api` (US-04), and `staffIds` on services: which staff perform a service, stored as a DynamoDB string set, written with `POST` and `PATCH /services` and returned by every service response. The `catalog-api` role gets `BatchGetItem`, and its source is now grouped by feature (`services/`, `staff/`, `http/`).
+- Acceptance criteria for US-04 (manage staff) and the `/staff` endpoints and the `staffIds` of services in `api/openapi.yaml`.
 - `catalog-api` Lambda with `POST /services`, `GET /services`, `GET /services/{serviceId}` and `PATCH /services/{serviceId}` (US-03), its Terraform and tests, including the first cross-tenant tests and the check that every route rejects a token without a tenant.
 - `currency` (default `TRY`) in the default tenant settings, `requireRole` and `serviceKey` in the shared package, and a shared `parseWith` validation helper.
 - Acceptance criteria for US-03 (manage services) and the `/services` endpoints in `api/openapi.yaml`.

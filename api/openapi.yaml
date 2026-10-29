@@ -23,6 +23,8 @@ tags:
     description: Business (tenant) registration.
   - name: Services
     description: The services a business offers (US-03).
+  - name: Staff
+    description: The staff members of a business (US-04).
 security:
   - cognitoJwt: []
 paths:
@@ -107,7 +109,7 @@ paths:
       operationId: createService
       summary: Create a service
       description: |
-        Creates a service for the caller's tenant (US-03). Owner only. There is no `Idempotency-Key`: repeating the call creates another service.
+        Creates a service for the caller's tenant (US-03). Owner only. `staffIds` (optional) names the staff members who perform it; each must be a staff member of the caller's tenant (US-04). There is no `Idempotency-Key`: repeating the call creates another service.
       requestBody:
         required: true
         content:
@@ -212,7 +214,7 @@ paths:
       operationId: updateService
       summary: Change or retire a service
       description: |
-        Changes only the properties that are sent. `active: false` retires the service and `active: true` restores it; there is no delete. Duration plus buffer is checked on the resulting values. Existing appointments keep their own snapshot. Owner only.
+        Changes only the properties that are sent. `active: false` retires the service and `active: true` restores it; there is no delete. Duration plus buffer is checked on the resulting values. `staffIds` replaces the whole set of staff members who perform the service (`[]` empties it); when it is left out the set does not change. Existing appointments keep their own snapshot. Owner only.
       requestBody:
         required: true
         content:
@@ -226,6 +228,140 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Service'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /staff:
+    post:
+      tags:
+        - Staff
+      operationId: createStaffMember
+      summary: Create a staff member
+      description: |
+        Creates a staff member for the caller's tenant (US-04). Owner only. A staff member is a record that appointments are assigned to, not a user account. Which services they perform is set on the service (`staffIds`). There is no `Idempotency-Key`: repeating the call creates another staff member.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateStaffRequest'
+      responses:
+        '201':
+          description: The staff member is created and active.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Staff'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    get:
+      tags:
+        - Staff
+      operationId: listStaff
+      summary: List staff
+      description: |
+        Lists the caller's staff members in creation order, 50 per page by default. Retired members are left out unless `includeInactive` is true. Owner and staff.
+      parameters:
+        - name: includeInactive
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: false
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+        - name: nextToken
+          in: query
+          required: false
+          description: The `nextToken` of the previous page. Opaque; it is only valid for the tenant it was issued to.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: One page of staff members.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StaffList'
+        '400':
+          description: A query parameter is not valid, or `nextToken` is malformed or was not issued for the caller's tenant (`invalid_page_token`).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                validationFailed:
+                  value:
+                    code: validation_failed
+                    message: The request is not valid.
+                    details:
+                      - field: limit
+                        issue: too_large
+                invalidPageToken:
+                  value:
+                    code: invalid_page_token
+                    message: The page token is not valid.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /staff/{staffId}:
+    parameters:
+      - $ref: '#/components/parameters/StaffId'
+    get:
+      tags:
+        - Staff
+      operationId: getStaffMember
+      summary: Get a staff member
+      description: Returns a staff member of the caller's tenant, active or not. Owner and staff.
+      responses:
+        '200':
+          description: The staff member.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Staff'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags:
+        - Staff
+      operationId: updateStaffMember
+      summary: Change or retire a staff member
+      description: |
+        Changes only the properties that are sent. `active: false` retires the staff member and `active: true` restores them; there is no delete. Retiring changes no service and no appointment. Owner only.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateStaffRequest'
+      responses:
+        '200':
+          description: The updated staff member.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Staff'
         '400':
           $ref: '#/components/responses/ValidationFailed'
         '401':
@@ -257,6 +393,13 @@ components:
       in: path
       required: true
       description: Service id (ULID).
+      schema:
+        type: string
+    StaffId:
+      name: staffId
+      in: path
+      required: true
+      description: Staff member id (ULID).
       schema:
         type: string
   responses:
@@ -418,6 +561,13 @@ components:
           description: "Price in the smallest unit of the tenant's currency (for TRY, kuruş: 25050 is 250.50)."
           examples:
             - 25050
+        staffIds:
+          type: array
+          maxItems: 50
+          uniqueItems: true
+          items:
+            type: string
+          description: "Ids of the staff members who perform this service. Each must be a staff member of the caller's tenant, active or not (`unknown_staff` otherwise)."
     UpdateServiceRequest:
       type: object
       additionalProperties: false
@@ -444,6 +594,13 @@ components:
         active:
           type: boolean
           description: '`false` retires the service; `true` restores it.'
+        staffIds:
+          type: array
+          maxItems: 50
+          uniqueItems: true
+          items:
+            type: string
+          description: "Replaces the whole set of staff members who perform this service; `[]` empties it. Left out, the set does not change. Ids of staff members who perform this service. Each must be a staff member of the caller's tenant, active or not (`unknown_staff` otherwise)."
     Service:
       type: object
       required:
@@ -453,6 +610,7 @@ components:
         - bufferMinutes
         - priceMinor
         - active
+        - staffIds
         - createdAt
       properties:
         id:
@@ -468,6 +626,11 @@ components:
           type: integer
         active:
           type: boolean
+        staffIds:
+          type: array
+          items:
+            type: string
+          description: Ids of the staff members who perform this service. Empty when there are none. Retired members are not removed from it.
         createdAt:
           type: string
           format: date-time
@@ -483,3 +646,58 @@ components:
         nextToken:
           type: string
           description: Present when more services follow. Send it back as `nextToken` to get the next page.
+    CreateStaffRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 80
+          description: Shown to customers and in the calendar. Trimmed. Names need not be unique.
+          examples:
+            - Ahmet
+    UpdateStaffRequest:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 80
+        active:
+          type: boolean
+          description: '`false` retires the staff member; `true` restores them.'
+    Staff:
+      type: object
+      required:
+        - id
+        - name
+        - active
+        - createdAt
+      properties:
+        id:
+          type: string
+          description: Staff member id (ULID).
+        name:
+          type: string
+        active:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+    StaffList:
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Staff'
+        nextToken:
+          type: string
+          description: Present when more staff members follow. Send it back as `nextToken` to get the next page.

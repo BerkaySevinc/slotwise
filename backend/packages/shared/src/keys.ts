@@ -26,3 +26,10 @@ export const serviceKey = (tenantId: string, serviceId: string): ItemKey => ({
   PK: `T#${tenantId}`,
   SK: `${SERVICE_SK_PREFIX}${serviceId}`,
 });
+
+/** Staff members sit under their tenant (ADR-0002); list them with `STAFF_SK_PREFIX`. */
+export const STAFF_SK_PREFIX = 'STAFF#';
+export const staffKey = (tenantId: string, staffId: string): ItemKey => ({
+  PK: `T#${tenantId}`,
+  SK: `${STAFF_SK_PREFIX}${staffId}`,
+});

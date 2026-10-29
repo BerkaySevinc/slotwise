@@ -1,6 +1,6 @@
 # Backend
 
-TypeScript on Node.js, deployed as AWS Lambda functions. **Status:** `tenant-api` implements `POST /tenants` (US-01) and `catalog-api` the service endpoints (US-03); the other planned functions are not started.
+TypeScript on Node.js, deployed as AWS Lambda functions. **Status:** `tenant-api` implements `POST /tenants` (US-01) and `catalog-api` the service and staff endpoints (US-03, US-04); the other planned functions are not started.
 
 ## Planned functions
 
@@ -46,20 +46,19 @@ Test coverage: unit tests use an in-memory repository and a stubbed DynamoDB cli
 
 ## catalog-api
 
-The service endpoints: create, list, get and change (retire or restore) a service ([US-03](../docs/requirements/US-03-manage-services.md)). One Lambda serves four routes and dispatches on the route key.
+The service and staff endpoints: create, list, get and change (retire or restore) a service ([US-03](../docs/requirements/US-03-manage-services.md)) or a staff member ([US-04](../docs/requirements/US-04-manage-staff.md)). One Lambda serves eight routes and dispatches on the route key. `src/` is grouped by feature, with the shared HTTP code in `http/`.
 
 | File | Role |
 |---|---|
 | `src/handler.ts` | Wiring: environment, DynamoDB client, Powertools logger. Entry point of the bundle |
-| `src/app.ts` | HTTP layer: tenant and role checks, body and query parsing, routing, error mapping |
-| `src/services.ts` | The use cases and the repository port, including the duration plus buffer rule on merged values |
-| `src/service-schema.ts` | Request validation (zod); stays here because only this function uses it |
-| `src/page-token.ts` | The opaque `nextToken`; it carries the tenant so another tenant's token is refused |
-| `src/dynamo-service-repository.ts` | DynamoDB: put, get, paginated query and the guarded update |
+| `src/app.ts` | The router: the tenant check for every route, then the first feature that knows the route key, error mapping |
+| `src/http/` | Shared HTTP code: responses and body parsing, the list query, the opaque `nextToken` (it carries the tenant so another tenant's token is refused) and the paginated DynamoDB query |
+| `src/services/` | `routes.ts` (roles, parsing), `services.ts` (use cases, repository port, the duration plus buffer rule on merged values, the staff check), `service-schema.ts` (zod; stays here because only this function uses it), `dynamo-service-repository.ts` |
+| `src/staff/` | The same four files for staff members; `dynamo-staff-repository.ts` also answers which ids are staff of a tenant, with one `BatchGetItem` |
 
-Environment variable (set by Terraform): `DATA_TABLE`. Services are items `T#{tenantId}`/`SVC#{serviceId}`, listed with a key query on the `SVC#` prefix (ADR-0002). Prices are integers in the smallest currency unit. The function never deletes: a service is retired with `active: false`. It logs ids and error codes only, never the service name.
+Environment variable (set by Terraform): `DATA_TABLE`. Services are items `T#{tenantId}`/`SVC#{serviceId}`, staff `T#{tenantId}`/`STAFF#{staffId}`, both listed with a key query on their prefix (ADR-0002). Prices are integers in the smallest currency unit. Which staff perform a service is stored on the service as `staffIds`, a DynamoDB string set (no read is needed to add or remove a member, and the attribute is absent when the set is empty). The function never deletes: services and staff are retired with `active: false`. It logs ids and error codes only, never a name.
 
-Test coverage: unit tests use an in-memory repository and a stubbed DynamoDB client. The query, the pagination across retired services, the conditional update and the cross-tenant cases run against the deployed table (`tests/integration/services.int.test.ts`); the responses are checked against `api/openapi.yaml` (`tests/contract/services.contract.test.ts`).
+Test coverage: unit tests use in-memory repositories and a stubbed DynamoDB client. The queries, the pagination across retired items, the conditional update, the string set, the batched staff check and the cross-tenant cases run against the deployed table (`tests/integration/services.int.test.ts`, `tests/integration/staff.int.test.ts`); the responses are checked against `api/openapi.yaml` (`tests/contract/services.contract.test.ts`).
 
 ## Verify against dev before merging
 
@@ -77,7 +76,7 @@ Unit tests use fakes, so they cannot catch problems that only AWS shows. The fir
 - The HTTP layer calls the use case, the use case depends on interfaces (repository, user directory), and DynamoDB and Cognito are wired in `handler.ts`. Use-case code does not import the AWS SDK.
 - Unit tests sit next to the code. Tests that span components live in the root `tests/` folder.
 - `packages/shared` holds only code used by more than one function (or by the frontend); anything else stays in its function.
-- `catalog-api` is its first function with several routes: it dispatches on `routeKey` in `app.ts` (one integration, four routes). It follows `tenant-api` in letting use-case code throw `ApiError`.
+- `catalog-api` is the first function with several routes and several features: it dispatches on `routeKey` in `app.ts` (one integration, eight routes) and is grouped as `services/`, `staff/` and `http/`. It follows `tenant-api` in letting use-case code throw `ApiError`.
 - Known gaps, fixed when `tenant-api` gets its second feature: use-case code throws `ApiError` (HTTP status codes) and should throw its own error types that an `http/` layer maps to responses; several routes in one Lambda need routing (dispatch on `routeKey`, or one integration per route); add an ESLint `no-restricted-imports` rule that keeps the AWS SDK out of use-case files.
 - The tenant id always comes from the verified JWT, never from the request path or body.
 - Handlers validate input at the boundary and return `400` for malformed or null bodies.

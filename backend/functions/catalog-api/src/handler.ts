@@ -3,7 +3,8 @@ import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
 import { ulid } from 'ulid';
 import { buildHandler } from './app.js';
-import { DynamoServiceRepository } from './dynamo-service-repository.js';
+import { DynamoServiceRepository } from './services/dynamo-service-repository.js';
+import { DynamoStaffRepository } from './staff/dynamo-staff-repository.js';
 
 // Read at cold start so a missing variable fails the first invocation loudly, not a request later.
 function env(name: string): string {
@@ -12,21 +13,27 @@ function env(name: string): string {
   return value;
 }
 
-const logger = new Logger({ serviceName: 'catalog-api' });
+const powertools = new Logger({ serviceName: 'catalog-api' });
+const logger = {
+  info: (message: string, extra?: Record<string, unknown>) => {
+    powertools.info(message, extra ?? {});
+  },
+  error: (message: string, extra?: Record<string, unknown>) => {
+    powertools.error(message, extra ?? {});
+  },
+};
+
+const db = DynamoDBDocumentClient.from(new DynamoDBClient({}));
+const table = env('DATA_TABLE');
+const staffRepository = new DynamoStaffRepository(db, table);
+const common = { newId: ulid, now: () => new Date(), logger };
 
 export const handler = buildHandler({
-  repository: new DynamoServiceRepository(
-    DynamoDBDocumentClient.from(new DynamoDBClient({})),
-    env('DATA_TABLE'),
-  ),
-  newId: ulid,
-  now: () => new Date(),
-  logger: {
-    info: (message, extra) => {
-      logger.info(message, extra ?? {});
-    },
-    error: (message, extra) => {
-      logger.error(message, extra ?? {});
-    },
+  services: {
+    ...common,
+    repository: new DynamoServiceRepository(db, table),
+    staff: staffRepository,
   },
+  staff: { ...common, repository: staffRepository },
+  logger,
 });

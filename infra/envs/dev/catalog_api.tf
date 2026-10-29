@@ -1,4 +1,4 @@
-# catalog-api: the service endpoints (US-03). Build the bundle first with `npm run build`.
+# catalog-api: the service and staff endpoints (US-03, US-04). Build the bundle first with `npm run build`.
 
 data "archive_file" "catalog_api" {
   type        = "zip"
@@ -34,10 +34,17 @@ data "aws_iam_policy_document" "catalog_api" {
     resources = ["${aws_cloudwatch_log_group.catalog_api.arn}:*"]
   }
 
-  # No DeleteItem: services are retired, never deleted (US-03).
+  # No DeleteItem: services and staff are retired, never deleted (US-03, US-04). BatchGetItem checks
+  # the staff ids of a service.
   statement {
-    sid       = "ServiceData"
-    actions   = ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:Query"]
+    sid = "CatalogData"
+    actions = [
+      "dynamodb:GetItem",
+      "dynamodb:BatchGetItem",
+      "dynamodb:PutItem",
+      "dynamodb:UpdateItem",
+      "dynamodb:Query",
+    ]
     resources = [aws_dynamodb_table.data.arn]
   }
 }
@@ -76,13 +83,17 @@ resource "aws_apigatewayv2_integration" "catalog_api" {
   payload_format_version = "2.0"
 }
 
-# One integration, four routes: the function dispatches on the route key.
+# One integration, eight routes: the function dispatches on the route key.
 resource "aws_apigatewayv2_route" "catalog_api" {
   for_each = toset([
     "POST /services",
     "GET /services",
     "GET /services/{serviceId}",
     "PATCH /services/{serviceId}",
+    "POST /staff",
+    "GET /staff",
+    "GET /staff/{staffId}",
+    "PATCH /staff/{staffId}",
   ])
 
   api_id             = aws_apigatewayv2_api.http.id
