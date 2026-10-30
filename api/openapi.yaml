@@ -25,6 +25,8 @@ tags:
     description: The services a business offers (US-03).
   - name: Staff
     description: The staff members of a business (US-04).
+  - name: Working hours
+    description: The weekly working hours and the time off of a staff member (US-05).
 security:
   - cognitoJwt: []
 paths:
@@ -370,6 +372,195 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+  /staff/{staffId}/hours:
+    parameters:
+      - $ref: '#/components/parameters/StaffId'
+    get:
+      tags:
+        - Working hours
+      operationId: getWorkingHours
+      summary: Get the weekly working hours
+      description: |
+        Returns the week of a staff member of the caller's tenant, retired or not. A staff member whose hours were never set has seven empty days, not a `404`: nobody can book them until the owner sets hours. Times are the business's local wall-clock time. Owner and staff.
+      responses:
+        '200':
+          description: The week.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkingHours'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags:
+        - Working hours
+      operationId: setWorkingHours
+      summary: Replace the weekly working hours
+      description: |
+        Replaces the whole week. A day that is left out, or `[]`, is a day without work. Times are `HH:MM` in the business's local time on a 5-minute grid; `end` may be `24:00`; an interval never crosses midnight; a lunch break is the gap between two intervals. Owner only. Two simultaneous calls: the last one wins.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetWorkingHoursRequest'
+            example:
+              mon:
+                - start: '09:00'
+                  end: '12:30'
+                - start: '13:30'
+                  end: '18:00'
+              sat:
+                - start: '10:00'
+                  end: '16:00'
+      responses:
+        '200':
+          description: The week as stored.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkingHours'
+        '400':
+          description: |
+            The body is missing, null, not valid JSON, or fails validation. Issues: `invalid_format`, `not_a_multiple`, `end_not_after_start`, `overlapping` (also for intervals that touch), `too_many` (more than 4 intervals in a day), `unrecognized` (a day that does not exist).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: validation_failed
+                message: The request is not valid.
+                details:
+                  - field: mon[1].start
+                    issue: overlapping
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /staff/{staffId}/time-off:
+    parameters:
+      - $ref: '#/components/parameters/StaffId'
+    post:
+      tags:
+        - Working hours
+      operationId: addTimeOff
+      summary: Add time off
+      description: |
+        Marks whole days as time off, from `startDate` to `endDate`, both inclusive, as calendar dates in the business's local time. At most 31 days. All days are written or none. A day that is already time off is written again, so repeating a request is safe. Past dates are accepted. No reason is stored (a sick day is health data). Owner only.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddTimeOffRequest'
+      responses:
+        '201':
+          description: The days of the range, in order.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TimeOffList'
+        '400':
+          description: |
+            The body is missing, null, not valid JSON, or fails validation. Issues: `required`, `invalid_format` (not a real calendar date), `end_before_start`, `too_large` (more than 31 days), `unrecognized`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: validation_failed
+                message: The request is not valid.
+                details:
+                  - field: endDate
+                    issue: too_large
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    get:
+      tags:
+        - Working hours
+      operationId: listTimeOff
+      summary: List time off
+      description: |
+        Lists the time-off days of a staff member in ascending date order, 50 per page by default. Owner and staff.
+      parameters:
+        - name: fromDate
+          in: query
+          required: false
+          description: Only this date and later, `YYYY-MM-DD`.
+          schema:
+            type: string
+            format: date
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+        - name: nextToken
+          in: query
+          required: false
+          description: The `nextToken` of the previous page. Opaque; it is only valid for the tenant it was issued to.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: One page of time-off days.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TimeOffList'
+        '400':
+          description: A query parameter is not valid (including `fromDate`), or `nextToken` is malformed or was not issued for the caller's tenant (`invalid_page_token`).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /staff/{staffId}/time-off/{date}:
+    parameters:
+      - $ref: '#/components/parameters/StaffId'
+      - name: date
+        in: path
+        required: true
+        description: The day, `YYYY-MM-DD`, in the business's local time.
+        schema:
+          type: string
+          format: date
+    delete:
+      tags:
+        - Working hours
+      operationId: removeTimeOff
+      summary: Remove one day of time off
+      description: |
+        Removes the day. A day that is not time off also returns `204`, so repeating the call is safe. The staff member is checked first. Owner only.
+      responses:
+        '204':
+          description: The day is not time off any more.
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
 components:
   securitySchemes:
     cognitoJwt:
@@ -701,3 +892,94 @@ components:
         nextToken:
           type: string
           description: Present when more staff members follow. Send it back as `nextToken` to get the next page.
+    WorkingInterval:
+      type: object
+      additionalProperties: false
+      required:
+        - start
+        - end
+      properties:
+        start:
+          type: string
+          pattern: '^([01]\d|2[0-3]):[0-5]\d$'
+          description: Local time `HH:MM`, a multiple of 5 minutes, `00:00` to `23:55`.
+          examples:
+            - '09:00'
+        end:
+          type: string
+          pattern: '^(([01]\d|2[0-3]):[0-5]\d|24:00)$'
+          description: Local time `HH:MM`, a multiple of 5 minutes, after `start`; `24:00` is the end of the day.
+          examples:
+            - '18:00'
+    SetWorkingHoursRequest:
+      type: object
+      additionalProperties: false
+      description: The days of the week. A day that is left out has no working hours.
+      properties:
+        mon: &DayIntervals
+          type: array
+          maxItems: 4
+          items:
+            $ref: '#/components/schemas/WorkingInterval'
+        tue: *DayIntervals
+        wed: *DayIntervals
+        thu: *DayIntervals
+        fri: *DayIntervals
+        sat: *DayIntervals
+        sun: *DayIntervals
+    WorkingHours:
+      type: object
+      description: The week in the business's local time. Days without work are `[]`.
+      required:
+        - mon
+        - tue
+        - wed
+        - thu
+        - fri
+        - sat
+        - sun
+      properties:
+        mon: *DayIntervals
+        tue: *DayIntervals
+        wed: *DayIntervals
+        thu: *DayIntervals
+        fri: *DayIntervals
+        sat: *DayIntervals
+        sun: *DayIntervals
+    AddTimeOffRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - startDate
+        - endDate
+      properties:
+        startDate:
+          type: string
+          format: date
+          description: First day, local calendar date `YYYY-MM-DD`.
+          examples:
+            - '2026-11-03'
+        endDate:
+          type: string
+          format: date
+          description: Last day, inclusive. Not before `startDate`, at most 31 days in all.
+          examples:
+            - '2026-11-07'
+    TimeOffList:
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          items:
+            type: object
+            required:
+              - date
+            properties:
+              date:
+                type: string
+                format: date
+        nextToken:
+          type: string
+          description: Present when more days follow. Send it back as `nextToken` to get the next page.
