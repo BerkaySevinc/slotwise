@@ -7,6 +7,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- Acceptance criteria for US-05 (working hours and time off) and the draft of its five endpoints in `api/openapi.yaml`: `PUT` and `GET /staff/{staffId}/hours`, `POST` and `GET /staff/{staffId}/time-off`, `DELETE /staff/{staffId}/time-off/{date}`. Not implemented yet.
 - `POST /staff`, `GET /staff`, `GET /staff/{staffId}` and `PATCH /staff/{staffId}` in `catalog-api` (US-04), and `staffIds` on services: which staff perform a service, stored as a DynamoDB string set, written with `POST` and `PATCH /services` and returned by every service response. The `catalog-api` role gets `BatchGetItem`, and its source is now grouped by feature (`services/`, `staff/`, `http/`).
 - Acceptance criteria for US-04 (manage staff) and the `/staff` endpoints and the `staffIds` of services in `api/openapi.yaml`.
 - `catalog-api` Lambda with `POST /services`, `GET /services`, `GET /services/{serviceId}` and `PATCH /services/{serviceId}` (US-03), its Terraform and tests, including the first cross-tenant tests and the check that every route rejects a token without a tenant.
